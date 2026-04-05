@@ -5,12 +5,12 @@ build-backend = "hatchling.build"
 [project]
 name = "agentanvil"
 version = "0.0.1"
-description = "Testing and evaluation platform for LLM agents — hybrid metrics, multi-agent simulation, and iterative prompt improvement."
+description = "Contract-based testing framework for LLM agents — hybrid metrics (objective + LLM-as-judge + human), multi-agent and A2A protocol support, deterministic record/replay envelope."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [{ name = "cchinchilla-dev" }]
-keywords = ["llm", "agents", "testing", "evaluation", "observability"]
+keywords = ["llm", "agents", "testing", "evaluation", "multi-agent", "a2a", "observability"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -27,13 +27,29 @@ dependencies = [
     "httpx>=0.25",
     "typer>=0.9",
     "rich>=13.0",
+    "anyio>=4.0",
 ]
 
 [project.optional-dependencies]
+# Backends LLM
 agentloom = [
-    "agentloom[observability]>=0.4.0",
+    "agentloom[contracts,observability]>=0.5.0",
 ]
-all = ["agentanvil[agentloom]"]
+
+# Infraestructura operativa
+docker = ["docker>=7.0"]
+
+# Cross-cutting transversal modules
+viz = ["plotly>=5.0", "networkx>=3.0", "pyvis>=0.3"]
+stats = ["scipy>=1.12", "statsmodels>=0.14", "krippendorff>=0.6"]
+replication = ["sigstore>=3.0", "cyclonedx-python-lib>=7.0"]
+security = ["presidio-analyzer>=2.2", "detect-secrets>=1.5"]
+cicd = ["sarif-om>=1.0"]
+
+# Convenience bundle covering every optional extra
+all = [
+    "agentanvil[agentloom,docker,viz,stats,replication,security,cicd]",
+]
 
 [dependency-groups]
 dev = [
