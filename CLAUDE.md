@@ -45,8 +45,4 @@ Never hardcode span attribute strings — always go through the constants. This 
 
 When using `DirectBackend`, AgentAnvil emits and consumes OpenTelemetry GenAI semantic conventions directly, without depending on AgentLoom.
 
-**Historical note:** a separate package named `agentwarp` was previously planned to host these contracts as an independent PyPI package. That plan was reversed after an architectural review (see `/Users/Admin/Documents/PhD/scope-justification.md` in the author's PhD repository for the rationale). The submodule `agentloom.contracts` replaces it from AgentLoom 0.5.0 onward.
-
-## Role in the PhD thesis
-
-AgentAnvil is the central artefact of article 2 of the doctoral compendium (target venue TSE Q1) and the experimental instrument of article 3 (target TSE/EMSE Q1). It materialises OE2 (contracts), OE3 (architecture + reproducibility envelope) and OE4 (hybrid evaluator) of the thesis proposal. See `/Users/Admin/Documents/PhD/planteamiento.md` and `/Users/Admin/Documents/PhD/agentanvil-planteamiento.md` in the PhD repository for the full framing.
+**Historical note:** a separate package named `agentwarp` was previously planned to host these contracts as an independent PyPI package. That plan was reversed after an architectural review. The submodule `agentloom.contracts` replaces it from AgentLoom 0.5.0 onward.
