@@ -1,0 +1,78 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentanvil"
+version = "0.0.0"
+description = "Testing and evaluation platform for LLM agents — hybrid metrics, multi-agent simulation, and iterative prompt improvement."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "cchinchilla-dev" }]
+keywords = ["llm", "agents", "testing", "evaluation", "observability"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = [
+    "pydantic>=2.0,<3.0",
+    "pyyaml>=6.0",
+    "httpx>=0.25",
+    "typer>=0.9",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+agentloom = [
+    "agentloom[observability]>=0.4.0",
+]
+all = ["agentanvil[agentloom]"]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+    "mypy>=1.8",
+    "pre-commit>=3.5",
+    "pytest-cov>=4.0",
+    "types-pyyaml>=6.0",
+]
+
+[project.scripts]
+agentanvil = "agentanvil.cli.main:app"
+
+[project.urls]
+Homepage = "https://github.com/cchinchilla-dev/agentanvil"
+Repository = "https://github.com/cchinchilla-dev/agentanvil"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentanvil"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM", "TC"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/agentanvil/cli/main.py" = ["B008"]  # typer.Argument/Option in defaults is idiomatic
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
