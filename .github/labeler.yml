@@ -1,0 +1,17 @@
+core:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/agentanvil/core/**
+
+cli:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/agentanvil/cli/**
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/workflows/**
+
+release:
+  - head-branch: ['^release\/']
