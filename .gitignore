@@ -41,4 +41,5 @@ site/
 !.agentloom/checkpoints/.gitkeep
 
 recordings/
+!tests/fixtures/recordings/
 .agentloom/
