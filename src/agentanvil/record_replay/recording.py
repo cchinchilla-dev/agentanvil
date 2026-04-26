@@ -23,6 +23,7 @@ import anyio
 
 from agentanvil.backends.base import LLMBackend
 from agentanvil.backends.types import LLMResponse, Message, ToolDef
+from agentanvil.exceptions import RecordingError
 
 RECORDING_VERSION = "1"
 
@@ -210,7 +211,7 @@ class RecordingBackend(LLMBackend):
             return
         existing = json.loads(self._path.read_text())
         if existing.get("recording_version") != RECORDING_VERSION:
-            raise ValueError(
+            raise RecordingError(
                 f"Recording at {self._path} has version "
                 f"{existing.get('recording_version')!r}; expected {RECORDING_VERSION!r}"
             )

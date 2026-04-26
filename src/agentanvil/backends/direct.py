@@ -18,6 +18,7 @@ from agentanvil.backends._providers._base import ProviderClientBase
 from agentanvil.backends.base import LLMBackend
 from agentanvil.backends.pricing import cost_for
 from agentanvil.backends.types import LLMResponse, Message, ToolDef
+from agentanvil.exceptions import BackendError
 
 ProviderName = Literal["openai", "anthropic", "google"]
 
@@ -43,7 +44,7 @@ class DirectBackend(LLMBackend):
         elif provider == "google":
             self._client = google.GoogleClient(api_key=api_key, base_url=base_url)
         else:
-            raise ValueError(
+            raise BackendError(
                 f"Unknown provider {provider!r}; expected one of ('openai', 'anthropic', 'google')"
             )
 
