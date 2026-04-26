@@ -1,5 +1,7 @@
 """AgentAnvil CLI — quality gates and evaluations for LLM agents."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 import typer
@@ -51,3 +53,7 @@ def run(
     console.print()
     console.print("[yellow]Full evaluation pipeline not yet implemented.[/yellow]")
     console.print("Use [bold]agentanvil validate[/bold] to check your contract.")
+
+
+if __name__ == "__main__":
+    app()
