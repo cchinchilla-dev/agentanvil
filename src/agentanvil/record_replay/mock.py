@@ -19,6 +19,7 @@ from typing import Any
 
 from agentanvil.backends.base import LLMBackend
 from agentanvil.backends.types import LLMResponse, Message, ToolDef
+from agentanvil.exceptions import RecordingError
 from agentanvil.record_replay.recording import RECORDING_VERSION, request_key
 
 
@@ -31,7 +32,7 @@ class MockBackend(LLMBackend):
         self._path = Path(recording_path)
         envelope = json.loads(self._path.read_text())
         if envelope.get("recording_version") != RECORDING_VERSION:
-            raise ValueError(
+            raise RecordingError(
                 f"Recording at {self._path} has version "
                 f"{envelope.get('recording_version')!r}; expected {RECORDING_VERSION!r}"
             )
