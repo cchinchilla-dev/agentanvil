@@ -1,0 +1,46 @@
+{
+  "agentanvil_version": "0.1.1",
+  "contract_hash": "sha256:c0ffee0000000000000000000000000000000000000000000000000000000000",
+  "entries": [
+    {
+      "key": "sha256:ac6aadbb54e895a4ede4e7a7bf979701932bc22902cdaec0091b3366708fdb96",
+      "request": {
+        "max_tokens": null,
+        "messages": [
+          {
+            "content": "hi",
+            "metadata": {},
+            "name": null,
+            "role": "user",
+            "tool_call_id": null,
+            "tool_calls": []
+          }
+        ],
+        "model": "gpt-4o-2024-11-20",
+        "seed": null,
+        "temperature": 0.0,
+        "tools": []
+      },
+      "response": {
+        "content": "Hello! How can I help you today?",
+        "cost_usd": "0.0000110",
+        "finish_reason": "stop",
+        "latency_ms": 312,
+        "model": "gpt-4o-2024-11-20",
+        "provider": "openai",
+        "raw": {},
+        "tool_calls": [],
+        "usage": {
+          "cached_tokens": 0,
+          "input_tokens": 8,
+          "output_tokens": 9,
+          "reasoning_tokens": 0
+        }
+      },
+      "step_id": "step_0"
+    }
+  ],
+  "recording_version": "1",
+  "run_id": "run_01JTESTFIXTURE0000000000",
+  "seed": 42
+}
