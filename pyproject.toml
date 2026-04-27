@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentanvil"
-version = "0.0.1"
-description = "Testing and evaluation platform for LLM agents — hybrid metrics, multi-agent simulation, and iterative prompt improvement."
+version = "0.1.1"
+description = "Contract-based testing framework for LLM agents — hybrid metrics (objective + LLM-as-judge + human), multi-agent and A2A protocol support, deterministic record/replay envelope."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [{ name = "cchinchilla-dev" }]
-keywords = ["llm", "agents", "testing", "evaluation", "observability"]
+keywords = ["llm", "agents", "testing", "evaluation", "multi-agent", "a2a", "observability"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -27,13 +27,31 @@ dependencies = [
     "httpx>=0.25",
     "typer>=0.9",
     "rich>=13.0",
+    "anyio>=4.0",
 ]
 
 [project.optional-dependencies]
+# Backends LLM
 agentloom = [
-    "agentloom[observability]>=0.4.0",
+    # TEMPORARY: lowered from agentloom[contracts,observability]>=0.5.0
+    # until AgentLoom 0.5.0 publishes to PyPI. See PR #1 comment.
+    "agentloom>=0.4.0",
 ]
-all = ["agentanvil[agentloom]"]
+
+# Infraestructura operativa
+docker = ["docker>=7.0"]
+
+# Cross-cutting transversal modules
+viz = ["plotly>=5.0", "networkx>=3.0", "pyvis>=0.3"]
+stats = ["scipy>=1.12", "statsmodels>=0.14", "krippendorff>=0.6"]
+replication = ["sigstore>=3.0", "cyclonedx-python-lib>=7.0"]
+security = ["presidio-analyzer>=2.2", "detect-secrets>=1.5"]
+cicd = ["sarif-om>=1.0"]
+
+# Convenience bundle covering every optional extra
+all = [
+    "agentanvil[agentloom,docker,viz,stats,replication,security,cicd]",
+]
 
 [dependency-groups]
 dev = [
@@ -56,9 +74,30 @@ Repository = "https://github.com/cchinchilla-dev/agentanvil"
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentanvil"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"src/agentanvil/py.typed" = "agentanvil/py.typed"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "-m 'not slow'"
+markers = [
+    "slow: tests that take >1s (run with -m slow)",
+]
+
+[tool.coverage.run]
+source = ["src/agentanvil"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 85
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abc.abstractmethod",
+]
 
 [tool.ruff]
 target-version = "py311"
@@ -67,9 +106,18 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM", "TC"]
-
-[tool.ruff.lint.per-file-ignores]
-"src/agentanvil/cli/main.py" = ["B008"]  # typer.Argument/Option in defaults is idiomatic
+ignore = [
+    "B008",   # typer.Argument/Option in defaults (standard Typer pattern)
+    "B904",   # raise from in exception handlers (not critical for CLI)
+    "TC001",  # move import into TYPE_CHECKING (too strict for this project)
+    "TC003",  # move stdlib import into TYPE_CHECKING
+    "A002",   # shadowing builtins (format is a common arg name)
+    "N806",   # uppercase in function
+    "N805",   # self2 in nested class
+    "B027",   # empty method without abstractmethod
+    "SIM102", # nested if (readability preference)
+    "B009",   # getattr with constant (used to satisfy mypy strict)
+]
 
 [tool.mypy]
 python_version = "3.11"
