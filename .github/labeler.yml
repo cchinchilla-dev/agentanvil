@@ -8,10 +8,21 @@ cli:
       - any-glob-to-any-file:
           - src/agentanvil/cli/**
 
+providers:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/agentanvil/backends/**
+
 ci:
   - changed-files:
       - any-glob-to-any-file:
           - .github/workflows/**
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - pyproject.toml
+          - uv.lock
 
 release:
   - head-branch: ['^release\/']
