@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [0.1.1] - 2026-04-26
+## [0.1.1] - 2026-04-29
 
 ### Added
 - `AgentAnvilError` exception hierarchy (`BackendError`, `RunnerError`,
