@@ -1,15 +1,15 @@
 ---
 name: roadmap
-description: Create a release-tracking issue that organizes open issues into a phased roadmap. Pass a target version (e.g., `0.5.0`) to scope the plan.
+description: Create a release-tracking issue that groups open issues into a phased plan for a target version. Use when planning a minor or major release, not for patches.
 ---
 
 Create a release-tracking issue (a "roadmap") that organizes open issues into a phased implementation plan. Matches the pattern used in AgentLoom's reference roadmap issue (`cchinchilla-dev/agentloom#133`).
 
-`$ARGUMENTS` is the target version (e.g., `0.2.0`, `0.5.0`). If missing, ask.
+The argument is the target version (e.g., `0.2.0`, `0.5.0`). If missing, ask.
 
 ## When to use this
 
-For minor or major releases with coordinated scope — multiple issues with interdependencies, parallelization decisions worth communicating, or deferred items that need to be explicitly listed so they're not forgotten. Skip for patch releases (hotfixes, small cleanups); those ship directly from the Unreleased CHANGELOG section via `/release`.
+For minor or major releases with coordinated scope — multiple issues with interdependencies, parallelization decisions worth communicating, or deferred items that need to be explicitly listed so they're not forgotten. Skip for patch releases (hotfixes, small cleanups); those ship directly from the Unreleased CHANGELOG section via the `release` skill.
 
 ## Process
 
@@ -58,5 +58,5 @@ For minor or major releases with coordinated scope — multiple issues with inte
 
 - The planning issue is a living document — editable after creation as scope clarifies.
 - Task-list checkboxes auto-update when child issues close; progress aggregates at the top of the issue.
-- `/release` references this issue for pre-flight validation: all referenced sub-tasks must be closed (or explicitly demoted from scope) before cutting the release.
+- The `release` skill references this issue for pre-flight validation: all referenced sub-tasks must be closed (or explicitly demoted from scope) before cutting the release.
 - For AgentAnvil specifically: distinguish portable items (no AgentLoom dependency) from items that require the optional `agentanvil[agentloom]` extra. Note this in each issue's body and in the roadmap's "What is deliberately not in" section.

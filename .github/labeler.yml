@@ -8,10 +8,23 @@ cli:
       - any-glob-to-any-file:
           - src/agentanvil/cli/**
 
-providers:
+backends:
   - changed-files:
       - any-glob-to-any-file:
           - src/agentanvil/backends/**
+
+runner:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/agentanvil/runner/**
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docs/**
+          - README.md
+          - CHANGELOG.md
+          - CONTRIBUTING.md
 
 ci:
   - changed-files:

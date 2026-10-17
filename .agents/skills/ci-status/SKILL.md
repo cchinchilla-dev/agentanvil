@@ -1,9 +1,9 @@
 ---
 name: ci-status
-description: Check GitHub Actions CI status. Shows recent runs, and if there are failures, reads the logs and suggests fixes.
+description: Check GitHub Actions runs and diagnose failures from their logs. Use when CI fails, after pushing, or before merging or releasing.
 ---
 
-Check CI status for AgentLoom.
+Check CI status for AgentAnvil.
 
 ## Process
 
@@ -25,6 +25,6 @@ Check CI status for AgentLoom.
    - Report: last successful run, branch, duration
    - One-liner: "CI green, ready to merge/release"
 
-4. **If $ARGUMENTS is a run ID**
-   - `gh run view $ARGUMENTS --log`
+4. **If the argument is a run ID**
+   - `gh run view <run-id> --log`
    - Parse and summarize the output

@@ -1,0 +1,42 @@
+{
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "permissions": {
+    "allow": [
+      "Bash(uv run pytest*)",
+      "Bash(uv run ruff*)",
+      "Bash(uv run mypy*)",
+      "Bash(uv run agentanvil*)",
+      "Bash(uv run python scripts/check_version_linearity.py)",
+      "Bash(uv lock --check)",
+      "Bash(make check)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add*)",
+      "Bash(gh pr view*)",
+      "Bash(gh pr list*)",
+      "Bash(gh pr diff*)",
+      "Bash(gh pr checks*)",
+      "Bash(gh issue view*)",
+      "Bash(gh issue list*)",
+      "Bash(gh label list*)",
+      "Bash(gh run list*)",
+      "Bash(gh run view*)",
+      "Bash(gh run watch*)"
+    ],
+    "ask": [
+      "Bash(git commit*)",
+      "Bash(gh pr create*)",
+      "Bash(gh issue create*)"
+    ],
+    "deny": [
+      "Bash(git push --force)",
+      "Bash(git push --force *)",
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)"
+    ]
+  }
+}
