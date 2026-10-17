@@ -43,3 +43,8 @@ site/
 recordings/
 !tests/fixtures/recordings/
 .agentloom/
+
+!AGENTS.md
+!CLAUDE.md
+!.claude/
+CLAUDE.local.md

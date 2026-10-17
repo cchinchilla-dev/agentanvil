@@ -1,27 +1,35 @@
-# AgentAnvil
+<p align="center">
+  <a href="https://github.com/cchinchilla-dev/agentanvil">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/cchinchilla-dev/agentanvil/main/docs/images/header_dark.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/cchinchilla-dev/agentanvil/main/docs/images/header_light.svg">
+      <img src="https://raw.githubusercontent.com/cchinchilla-dev/agentanvil/main/docs/images/header_light.svg" alt="AgentAnvil">
+    </picture>
+  </a>
+</p>
+<p align="center">
+  <strong>Testing and evaluation framework for LLM agents.</strong>
+</p>
 
-Testing and evaluation framework for LLM agents.
+AgentAnvil tests LLM agents against a formal contract. The target design takes an agent (any Python code, any framework), runs it under the contract, exercises it with test scenarios, scores its behaviour with **hybrid metrics** (objective checks, LLM-as-judge, and human annotation with active sampling), and keeps every run reproducible through a deterministic record/replay envelope. Only part of that pipeline ships today; the status note below says which.
 
-Receives an agent (any Python code, any framework), runs it under a formalised contract, subjects it to test scenarios, evaluates its behaviour with **hybrid metrics** (objective + LLM-as-judge + human annotation with active sampling), and produces reproducible results with a deterministic replay envelope.
+> **Status: early alpha (0.1.x).** The contract model, the LLM backend boundary, the subprocess runner, and record/replay are implemented. Scenario generation, evaluation, and reporting are planned for 0.2.0; the [0.2.0 roadmap](https://github.com/cchinchilla-dev/agentanvil/issues/18) tracks them. Each item below is marked as available or planned.
 
-AgentAnvil is portable across the LLM ecosystem. It accepts two LLM backends:
+AgentAnvil is portable across the LLM ecosystem. All LLM access goes through one `LLMBackend` boundary with two implementations:
 
-- **AgentLoom** (recommended) — [cchinchilla-dev/agentloom](https://github.com/cchinchilla-dev/agentloom). Production-grade runtime with resilience (circuit breaker, rate limiter, fallback), observability (OpenTelemetry, Prometheus), cost control, and built-in record/replay for deterministic experiments.
-- **Direct providers** — OpenAI, Anthropic, Google via `DirectBackend` (thin httpx adapter). No AgentLoom required. Use this to integrate AgentAnvil with LangChain / LangGraph / CrewAI / AutoGen agents without adopting additional dependencies.
+- **Direct providers** (available) — OpenAI, Anthropic, and Google through `DirectBackend`, a thin httpx adapter. No AgentLoom required, so it fits agents built with LangChain, LangGraph, CrewAI, or AutoGen without extra dependencies.
+- **AgentLoom** (planned, [#9](https://github.com/cchinchilla-dev/agentanvil/issues/9)) — [cchinchilla-dev/agentloom](https://github.com/cchinchilla-dev/agentloom) as backend, adding resilience (circuit breaker, rate limiter, fallback), observability (OpenTelemetry, Prometheus), and cost control.
 
 ## Install
 
 ```bash
-# Minimal — works with direct LLM providers (no AgentLoom required)
+# Core: contracts, DirectBackend, SubprocessRunner, record/replay
 pip install agentanvil
 
-# Recommended — with AgentLoom as backend for resilience, observability, record/replay
+# Installs AgentLoom alongside; the backend that uses it lands in 0.2.0 (#9)
 pip install "agentanvil[agentloom]"
 
-# With Docker runner
-pip install "agentanvil[docker]"
-
-# All extras
+# All optional extras
 pip install "agentanvil[all]"
 ```
 
@@ -53,58 +61,49 @@ constraints:
 agentanvil validate contract.yaml
 ```
 
-**3. Run an evaluation (direct backend, no AgentLoom):**
-
-```bash
-export OPENAI_API_KEY=sk-...
-agentanvil run path/to/agent/ \
-  --contract contract.yaml \
-  --backend direct \
-  --provider openai \
-  --threshold 0.85
-```
-
-**4. Run an evaluation (AgentLoom backend with record for replay):**
-
-```bash
-agentanvil run path/to/agent/ \
-  --contract contract.yaml \
-  --backend agentloom \
-  --record recordings/run1.json \
-  --budget 10.0
-```
-
-**5. Replay offline (CI, reproducible, no API cost):**
-
-```bash
-agentanvil run path/to/agent/ \
-  --contract contract.yaml \
-  --replay recordings/run1.json
-```
-
-**6. As a library:**
+**3. Use the building blocks from Python:**
 
 ```python
-from agentanvil import AgentAnvil, AgentContract
-from agentanvil.backends import DirectBackend  # or AgentLoomBackend
+import os
+
+import anyio
+
+from agentanvil import AgentContract
+from agentanvil.backends import Message
+from agentanvil.backends.direct import DirectBackend
 
 contract = AgentContract.from_yaml("contract.yaml")
-ashut = AgentAnvil(contract=contract, backend=DirectBackend(provider="openai"))
-result = ashut.run(agent_path="./my_agent/")
-print(result.score, result.passed)
+backend = DirectBackend("openai", api_key=os.environ["OPENAI_API_KEY"])
+
+
+async def main() -> None:
+    reply = await backend.complete(
+        [Message(role="user", content="Say hello in one word.")],
+        model="gpt-4o-mini",
+    )
+    print(contract.name, reply.content, reply.cost_usd)
+
+
+anyio.run(main)
 ```
+
+`agentanvil run` exists but is a placeholder until the evaluation pipeline lands in 0.2.0 ([#18](https://github.com/cchinchilla-dev/agentanvil/issues/18)).
 
 ## Architecture
 
 ```
 AgentAnvil
-├── Contracts   — formal model of expected agent behaviour (YAML + Python + static analysis)
-├── Analyzer    — static analysis of agent code (AST, no LLM required)
-├── Generator   — auto-generate test scenarios from contract + agent profile
-├── Runner      — execute scenarios: SubprocessRunner, DockerRunner (K8sRunner planned for 0.4.0)
-├── Evaluator   — hybrid metrics: objective + LLM-judge + human (active sampling)
-├── Reporter    — HTML, JSON, and Markdown reports + CI quality gate
-└── Record/Replay envelope — deterministic replay of LLM responses for reproducibility
+├── Contracts      — formal model of expected agent behaviour (YAML ↔ Pydantic)        available
+│                    static consistency analysis                                        planned (#4)
+├── Backends       — LLMBackend boundary: DirectBackend                                 available
+│                    AgentLoomBackend                                                   planned (#9)
+├── Runner         — SubprocessRunner                                                   available
+│                    DockerRunner (#7); K8sRunner later                                 planned
+├── Record/Replay  — deterministic replay envelope for LLM responses                    available
+├── Analyzer       — static analysis of agent code (AST, no LLM required)               planned (#5)
+├── Generator      — test scenarios from contract + agent profile                       planned (#6)
+├── Evaluator      — hybrid metrics: objective + LLM-judge + human (active sampling)    planned (#10, #11)
+└── Reporter       — HTML, JSON, and Markdown reports + CI quality gate                 planned (#12)
 ```
 
 ## Ecosystem
@@ -113,13 +112,13 @@ AgentAnvil
 agentanvil
 ├── pydantic, httpx, pyyaml, typer, rich, anyio
 └── [extra: agentloom]
-    └── agentloom[observability]
-        └── agentloom.contracts   (submodule — OTel span attribute names, metric names)
+    └── agentloom
+        └── agentloom.contracts   (planned for AgentLoom 0.5.0 — shared types and observability names)
 ```
 
-The `agentloom.contracts` submodule is the typed contract between AgentLoom (emitter of OTel traces and Prometheus metrics) and AgentAnvil (consumer). It is installed automatically with `agentanvil[agentloom]`; third-party consumers get it from the base `agentloom` package, with no extra needed.
+`agentloom.contracts` will be the typed boundary between AgentLoom (which emits OTel traces and Prometheus metrics) and AgentAnvil (which consumes them). Its design is tracked in [agentloom#159](https://github.com/cchinchilla-dev/agentloom/issues/159); the `agentloom` extra will require it once AgentLoom 0.5.0 is on PyPI.
 
-When using `DirectBackend`, AgentAnvil emits and consumes OpenTelemetry GenAI semantic conventions directly — no coupling to AgentLoom.
+With `DirectBackend`, AgentAnvil does not depend on AgentLoom at all; OpenTelemetry GenAI support for that path is planned.
 
 ## What AgentAnvil is not
 
@@ -129,7 +128,7 @@ When using `DirectBackend`, AgentAnvil emits and consumes OpenTelemetry GenAI se
 
 ## Status
 
-Early alpha. See the [roadmap](https://github.com/cchinchilla-dev/agentanvil/issues) for the 0.2.0 MVP plan.
+Early alpha. The [0.2.0 roadmap](https://github.com/cchinchilla-dev/agentanvil/issues/18) covers the single-agent MVP: AgentLoom backend, analyzer, generator, evaluator, reporter, and a LangChain quickstart.
 
 ## License
 

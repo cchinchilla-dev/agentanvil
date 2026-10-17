@@ -1,7 +1,7 @@
 """LLM backend abstraction.
 
 Every LLM call inside AgentAnvil flows through a concrete `LLMBackend`
-implementation. Two backends are shipped:
+implementation. Two backends are planned for 0.2.0, one of them available now:
 
 - `DirectBackend` (this package) — httpx-only adapter for OpenAI, Anthropic and
   Google. Zero AgentLoom dependency. The portability target.

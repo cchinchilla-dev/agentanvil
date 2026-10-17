@@ -1,9 +1,9 @@
 # Runner protocol — stdin/stdout JSON wire format
 
 This document specifies how AgentAnvil communicates with the agent under test
-through any concrete `Runner` implementation (`SubprocessRunner`,
-`DockerRunner`, `K8sRunner`). Adopting this protocol is the contract every
-agent must honour to be testable by AgentAnvil.
+through any concrete `Runner` implementation (`SubprocessRunner` today;
+`DockerRunner` and `K8sRunner` are planned). Adopting this protocol is the
+contract every agent must honour to be testable by AgentAnvil.
 
 The protocol is deliberately **simple** — JSON in, JSON out, plain text on
 stderr — so it can be implemented in any language without an SDK.

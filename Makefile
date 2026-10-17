@@ -1,10 +1,12 @@
-.PHONY: install install-all test test-cov lint format typecheck check validate run build clean
+.PHONY: install install-all test test-cov determinism lint format format-check typecheck version check validate run build clean
 
 install:
 	uv sync --group dev
+	uv run pre-commit install
 
 install-all:
 	uv sync --group dev --all-extras
+	uv run pre-commit install
 
 test:
 	uv run pytest
@@ -12,16 +14,26 @@ test:
 test-cov:
 	uv run pytest --cov=agentanvil --cov-report=term-missing
 
+determinism:
+	uv run pytest tests/ci/test_determinism.py -m slow -q
+
 lint:
 	uv run ruff check src/ tests/
 
 format:
 	uv run ruff format src/ tests/
 
+format-check:
+	uv run ruff format --check src/ tests/
+
 typecheck:
 	uv run mypy src/
 
-check: lint typecheck test
+version:
+	uv run python scripts/check_version_linearity.py
+
+# Same gates as CI; coverage below fail_under (85%) fails test-cov
+check: lint format-check typecheck test-cov determinism version
 
 # CLI shortcuts
 validate:
