@@ -11,7 +11,7 @@
   <strong>Testing and evaluation framework for LLM agents.</strong>
 </p>
 
-AgentAnvil tests LLM agents against a formal contract. It takes an agent (any Python code, any framework), runs it under the contract, exercises it with test scenarios, scores its behaviour with **hybrid metrics** (objective checks, LLM-as-judge, and human annotation with active sampling), and keeps every run reproducible through a deterministic record/replay envelope.
+AgentAnvil tests LLM agents against a formal contract. The target design takes an agent (any Python code, any framework), runs it under the contract, exercises it with test scenarios, scores its behaviour with **hybrid metrics** (objective checks, LLM-as-judge, and human annotation with active sampling), and keeps every run reproducible through a deterministic record/replay envelope. Only part of that pipeline ships today; the status note below says which.
 
 > **Status: early alpha (0.1.x).** The contract model, the LLM backend boundary, the subprocess runner, and record/replay are implemented. Scenario generation, evaluation, and reporting are planned for 0.2.0; the [0.2.0 roadmap](https://github.com/cchinchilla-dev/agentanvil/issues/18) tracks them. Each item below is marked as available or planned.
 

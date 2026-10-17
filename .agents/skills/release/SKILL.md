@@ -28,7 +28,16 @@ So the commit message prefix (`bump version to`) is load-bearing. Don't paraphra
    ROADMAP=$(gh issue list --label release --search "ship <X.Y.Z> in:title" --state all --json number -q '.[0].number')
    ```
 
-   If `$ROADMAP` is non-empty, extract the `#NNN` references from its task list and check each with `gh issue view <num> --json state -q .state`. If any is still OPEN, **stop** and report which; the user decides whether to close them, demote them to the next version (edit the roadmap), or ship intentionally incomplete. Skip for patch releases and when no roadmap issue matches.
+   If `$ROADMAP` is non-empty:
+   - Fetch its body: `gh issue view $ROADMAP --json body -q .body`
+   - Extract all `#NNN` references from task-list items.
+   - For each, check state via `gh issue view <num> --json state -q .state`.
+   - If any referenced issue is still OPEN, **stop** and report which are unfinished. Options:
+     - Close them first.
+     - Demote to the next version (edit the roadmap body, move to the "deferred" section).
+     - Explicitly override (ask the user) if the release ships intentionally incomplete.
+
+   Skip this step for patch releases (minor cleanups, hotfixes) — those don't need a roadmap. Skip also when no matching roadmap issue is found.
 
 3. **Pre-flight** — run the `check` skill. Abort on any failure. Also abort if `git status` is dirty.
 
@@ -45,10 +54,14 @@ So the commit message prefix (`bump version to`) is load-bearing. Don't paraphra
 
 6. **Branch + commit** — create `release/<X.Y.Z>` from an up-to-date `main`. Commit message **must** start with `bump version to <X.Y.Z>`. No type or scope on this one, unlike other commits; no Co-Authored-By. Do **not** run `git tag` locally — the workflow creates it on merge.
 
-7. **Open PR** — ask authorization first. Title matches the commit (`bump version to <X.Y.Z>`). Body: link the `## [X.Y.Z]` section of CHANGELOG.md and summarize highlights; if a roadmap issue exists (step 2), append `Closes #<roadmap>`. Never push directly to `main`, never use admin bypass.
+7. **Open PR** — ask authorization first. Title matches the commit (`bump version to <X.Y.Z>`). Body includes:
+   - Link to the `## [X.Y.Z]` section of CHANGELOG.md and summary highlights.
+   - If a roadmap issue exists (from step 2), append `Closes #<roadmap>` so merging the release closes the planning issue automatically.
+
+   Never push directly to `main`, never use admin bypass.
 
 8. **Wait for checks + squash-merge** — all required status checks must pass. **Squash-merge only** (this repo's convention). The squash commit takes the PR title (repo setting), so it starts with `bump version to <X.Y.Z> (#NN)` as long as the PR title is exact; `auto-tag.yml` greps that prefix and skips tagging otherwise. Once that squash commit lands on `main`:
    - Auto Tag creates `v<X.Y.Z>`.
    - Release builds + publishes. Watch: `gh run list --limit 5`.
 
-9. **Post-release** — report PR URL, tag, GitHub Release URL, and PyPI job status. If Auto Tag or Release fails, inspect with the `ci-status` skill first. If the tag exists but Release did not run, or failed before publishing, re-run it with `gh workflow run release.yml --ref main` (ask authorization first). Never move, delete or recreate tags by hand.
+9. **Post-release** — report PR URL, tag, GitHub Release URL, and PyPI job status. If Auto Tag or Release fails, inspect with the `ci-status` skill first. If the tag exists but Release did not run, or failed before publishing, re-run it with `gh workflow run release.yml --ref main` (ask authorization first). Never move, delete or recreate tags by hand. If a roadmap issue was referenced, confirm it closed automatically via the `Closes #NNN` in the merged PR.
