@@ -114,10 +114,10 @@ agentanvil
 ├── pydantic, httpx, pyyaml, typer, rich, anyio
 └── [extra: agentloom]
     └── agentloom[observability]
-        └── agentloom.contracts   (submodule — OTel span names, metric names, trace schemas)
+        └── agentloom.contracts   (submodule — OTel span attribute names, metric names)
 ```
 
-The `agentloom.contracts` submodule is the typed contract between AgentLoom (emitter of OTel traces and Prometheus metrics) and AgentAnvil (consumer). It is installed automatically with `agentanvil[agentloom]` and can also be installed alone via `pip install agentloom[contracts]` for third-party consumers that want the schema without the runtime.
+The `agentloom.contracts` submodule is the typed contract between AgentLoom (emitter of OTel traces and Prometheus metrics) and AgentAnvil (consumer). It is installed automatically with `agentanvil[agentloom]`; third-party consumers get it from the base `agentloom` package, with no extra needed.
 
 When using `DirectBackend`, AgentAnvil emits and consumes OpenTelemetry GenAI semantic conventions directly — no coupling to AgentLoom.
 

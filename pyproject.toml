@@ -33,7 +33,7 @@ dependencies = [
 [project.optional-dependencies]
 # Backends LLM
 agentloom = [
-    # TEMPORARY: lowered from agentloom[contracts,observability]>=0.5.0
+    # TEMPORARY: lowered from agentloom[observability]>=0.5.0
     # until AgentLoom 0.5.0 publishes to PyPI. See PR #1 comment.
     "agentloom>=0.4.0",
 ]
