@@ -10,7 +10,7 @@ AgentAnvil is a contract-based testing framework for LLM agents. Python 3.11+, a
 2. **Type annotations** — no `Any` in public signatures. Pydantic v2 models for all data structures.
 3. **LLM calls via the `LLMBackend` ABC** — never import provider SDKs or call LLM HTTP endpoints from business logic. Two backends ship: `DirectBackend` (httpx-only, no AgentLoom) and `AgentLoomBackend` (recommended, optional).
 4. **Contract as source of truth** — all evaluation logic must derive from the `AgentContract`. No hardcoded policies or criteria.
-5. **Observability constants from `agentloom.contracts`** — never hardcode span attribute names or metric names. Import enums (`SpanAttr`, `MetricName`) from `agentloom.contracts.stable` when integrating with the AgentLoom backend.
+5. **Observability constants from `agentloom.contracts`** — never hardcode span attribute names or metric names. Import the `SpanAttr` and `MetricName` constants from `agentloom.contracts.experimental` when integrating with the AgentLoom backend.
 6. **Custom exceptions** — domain errors should subclass `AgentAnvilError` (`BackendError`, `RunnerError`, `RecordingError`, `ContractValidationError`). Avoid bare `ValueError` / `KeyError` for framework-level failures.
 7. **Test quality** — `pytest-asyncio` auto mode. No real API calls in tests; mock via `httpx.MockTransport`.
 

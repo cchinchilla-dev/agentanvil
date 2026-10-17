@@ -34,15 +34,16 @@
 
 ## Observability contract
 
-Span attribute names, metric names, and trace schemas live in `agentloom.contracts` (submodule of AgentLoom). Import from there when using the AgentLoom backend:
+Span attribute names and metric names live in `agentloom.contracts` (submodule of AgentLoom). Import from there when using the AgentLoom backend:
 
 ```python
-from agentloom.contracts.spans import SpanAttr
-from agentloom.contracts.schemas import StepTrace
+from agentloom.contracts.experimental import SpanAttr, MetricName
 ```
+
+There are no Pydantic trace models: exported span dicts are parsed directly, keyed by these constants.
 
 Never hardcode span attribute strings — always go through the constants. This guarantees that when AgentLoom renames an attribute the CI catches the mismatch at the AgentAnvil side.
 
 When using `DirectBackend`, AgentAnvil emits and consumes OpenTelemetry GenAI semantic conventions directly, without depending on AgentLoom.
 
-**Historical note:** a separate package named `agentwarp` was previously planned to host these contracts as an independent PyPI package. That plan was reversed after an architectural review. The submodule `agentloom.contracts` replaces it from AgentLoom 0.5.0 onward.
+`agentloom.contracts` ships from AgentLoom 0.5.0 onward; the temporary `agentloom>=0.4.0` pin in `pyproject.toml` does not provide it yet.
