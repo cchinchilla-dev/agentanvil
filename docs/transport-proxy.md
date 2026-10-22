@@ -154,8 +154,8 @@ record:
 | `failure` | Upstream error or abort | `reason` (`upstream` or `divergence`), `role`, `k`, `status`, `request_hash`, `divergence`, `response`. |
 | `close` | Session closed | `crossings` and `missing`, per role. |
 
-A log used as `reference` must be complete: a log without its `close` record
-(the session never closed), a truncated line or a gap in k is
+A log used as `reference` must be complete: a log that does not end with its
+`close` record (the session never closed), a truncated line or a gap in k is
 an error, since replaying it would shift every later crossing.
 
 ## Status codes

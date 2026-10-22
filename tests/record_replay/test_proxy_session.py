@@ -175,3 +175,12 @@ def test_a_reference_without_its_close_record_is_rejected(tmp_path: Path) -> Non
     session.handle("agent", _body(1), Upstream())  # never closed: a run cut short
     with pytest.raises(RecordingError, match="close"):
         load_reference(session.log_path)
+
+
+def test_a_record_after_the_close_is_rejected(tmp_path: Path) -> None:
+    ref = _record(tmp_path)
+    lines = ref.read_text(encoding="utf-8").splitlines()
+    tail = tmp_path / "tail.jsonl"
+    tail.write_text("\n".join([*lines, lines[-1]]) + "\n", encoding="utf-8")  # a second close
+    with pytest.raises(RecordingError, match="after the close"):
+        load_reference(tail)

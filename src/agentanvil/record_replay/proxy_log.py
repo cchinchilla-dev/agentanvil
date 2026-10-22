@@ -128,11 +128,11 @@ class Close(BaseModel):
 def load_reference(path: Path, normalizer: Normalizer = DEFAULT) -> dict[str, list[Crossing]]:
     """Crossings of a session log grouped by role, in crossing order, hashed under `normalizer`.
 
-    The reference must be complete: a log without its `close` record (a run cut
-    short), a truncated line or a gap in k is an error, since replaying it would
-    silently shift or invent later crossings. Hashes are recomputed from the
-    stored request and response, so a session compares them under its own
-    normalizer whatever the reference was recorded with.
+    The reference must be complete: a log that does not end with its `close`
+    record (a run cut short), a truncated line or a gap in k is an error, since
+    replaying it would silently shift or invent later crossings. Hashes are
+    recomputed from the stored request and response, so a session compares them
+    under its own normalizer whatever the reference was recorded with.
     """
     by_role: dict[str, list[Crossing]] = {}
     closed = False
@@ -143,6 +143,8 @@ def load_reference(path: Path, normalizer: Normalizer = DEFAULT) -> dict[str, li
     for n, line in enumerate(lines, start=1):
         if not line.strip():
             continue
+        if closed:
+            raise RecordingError(f"{path}:{n}: record after the close record")
         try:
             obj = json.loads(line)
             if obj.get("kind") == "close":
