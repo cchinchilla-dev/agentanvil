@@ -73,7 +73,8 @@ half-written state, even if the writer crashes.
 | `key` | string | yes | SHA-256 of the normalised request (see below). `"sha256:"` prefix + 64 hex chars. |
 | `step_id` | string \| null | yes | Caller-provided step identifier. Preferred lookup key on replay. |
 | `request` | object | yes | Normalised request. |
-| `response` | object | yes | Normalised `LLMResponse` model dump (`mode="json"`). |
+| `response` | object | yes | Normalised `LLMResponse` model dump (`mode="json"`). For a streamed call, the whole answer: the joined text with the last chunk's tool calls, usage and finish reason. |
+| `chunks` | array | no | Streamed calls only: every chunk, in order, as `LLMResponse` dumps. A stream abandoned before its end is not recorded; one stopped at its last chunk is, because the recorder hands over each chunk one chunk late. |
 
 ## Key derivation
 
@@ -116,12 +117,27 @@ Fields **excluded** from the key (intentionally):
 
 1. **`step_id`** — if the caller passes a `step_id` and it matches a recorded entry, use it. Wins even if the request hash differs (allows refactoring callers without re-recording).
 2. **`key`** — SHA-256 over the normalised request as above.
-3. **Miss** → `KeyError`. Silent fallthroughs are forbidden — they would defeat the determinism guarantee.
+3. **Miss** → `ReplayMissError`, a `RecordingError` that is also a `KeyError`. Silent fallthroughs are forbidden — they would defeat the determinism guarantee.
 
-**Known limitation:** when a run repeats a `step_id` or sends the same request
-twice (a loop, a retry), the last recorded entry wins, and replay returns it for
-every repetition. The transport proxy pairs calls by order instead (the k-th
-call gets the k-th recorded response); the envelope will do the same.
+**Repeated calls replay in order.** When a run repeats a `step_id` or sends the
+same request again (a loop, a retry), the k-th call gets the k-th matching
+entry, and an entry already replayed is not served again by either lookup. When
+the matching entries run out, `MockBackend(path)` serves the last one again;
+`MockBackend(path, strict=True)` raises `ReplayMissError` instead. A `step_id`
+that has entries never falls back to the key lookup, and the key lookup uses
+only the entries recorded without a `step_id` when there are any: an entry
+recorded under a `step_id` stays for that step, and serves a key lookup only
+when nothing else matches.
+
+**Re-recording replaces.** The first time a `RecordingBackend` records a
+`step_id` (or, without one, a key), it drops the entries that earlier runs left
+in the file for it; repeats within one recorder accumulate in order. Replay
+therefore never mixes an old run's entries with a new one's.
+
+**Streams.** `MockBackend.stream` yields the recorded `chunks` in order. An
+entry without `chunks` follows the stream contract of `LLMBackend.stream`: its
+text as one delta, then a final chunk with `content=None` carrying the tool
+calls, usage and finish reason.
 
 ## Concurrency
 

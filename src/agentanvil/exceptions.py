@@ -31,6 +31,17 @@ class RecordingError(AgentAnvilError):
     """
 
 
+class ReplayMissError(RecordingError, KeyError):
+    """Raised when a replay has no recorded response left for a call.
+
+    Also a `KeyError`, which is what replay misses raised before this class existed.
+    """
+
+    def __str__(self) -> str:
+        # `KeyError.__str__` would wrap the message in quotes.
+        return Exception.__str__(self)
+
+
 class ReplayDivergenceError(RecordingError):
     """Raised when a crossing differs from its reference and the session aborts on divergence."""
 

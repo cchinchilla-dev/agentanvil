@@ -22,6 +22,27 @@
   carries them (#30).
 - `ReplayDivergenceError`, a `RecordingError` raised when a session aborts on
   divergence.
+- `MockBackend(path, strict=True)`: fails with `ReplayMissError` once the
+  recorded entries for a call run out, instead of serving the last one again (#22).
+
+### Changed
+- Replay misses raise `ReplayMissError`, a `RecordingError` that is still a
+  `KeyError`, so existing `except KeyError` handlers keep working (#22).
+- Re-recording into an existing file replaces what earlier runs left for each
+  `step_id` (or request key) the recorder records, instead of appending after
+  it; repeats within one recorder still accumulate in order (#22).
+- `RecordingBackend.stream` hands each chunk over one chunk late, so a caller
+  that stops at the last chunk still leaves a recording (#22).
+
+### Fixed
+- `MockBackend` replays repeated calls in recorded order: a repeated `step_id`
+  or request gets the next matching entry instead of always the last one (#22).
+- `RecordingBackend.stream` records a streamed call as one entry with every
+  chunk (`chunks`) and the whole answer as its `response`, instead of one entry
+  per chunk; `MockBackend.stream` replays the chunks in order, and streams a
+  non-streamed entry as a text delta plus a final chunk (#22).
+- Strict `MockBackend` no longer serves another step's entry once a `step_id`
+  runs out of entries (#22).
 
 ## [0.1.1] - 2026-04-29
 
