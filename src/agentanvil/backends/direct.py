@@ -83,15 +83,17 @@ class DirectBackend(LLMBackend):
         tools: list[ToolDef] | None = None,
         seed: int | None = None,
     ) -> AsyncIterator[LLMResponse]:
-        async for chunk in self._client.stream(
+        start = time.monotonic_ns()
+        chunks = self._client.stream(
             messages,
             model=model,
             temperature=temperature,
             max_tokens=max_tokens,
             tools=tools,
             seed=seed,
-        ):
-            yield self._client.normalise(chunk, latency_ms=0)
+        )
+        async for response in self._client.normalise_stream(chunks, model=model, start_ns=start):
+            yield response
 
     def cost_estimate(
         self,

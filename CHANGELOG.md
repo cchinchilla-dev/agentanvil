@@ -43,6 +43,15 @@
   non-streamed entry as a text delta plus a final chunk (#22).
 - Strict `MockBackend` no longer serves another step's entry once a `step_id`
   runs out of entries (#22).
+- `DirectBackend.stream` returns the streamed answer. OpenAI chunks were read as
+  full messages (`message` instead of `delta`) and Anthropic events as a full
+  response, so every chunk came back with `content=None`. Each provider now
+  yields text deltas and one final chunk with the assembled `tool_calls`, usage,
+  cost and finish reason; OpenAI streams ask for `stream_options.include_usage`.
+  A vendor error event, a stream with no events and tool-call arguments cut off
+  mid-JSON raise `BackendError`; the requested model prices a stream whose
+  chunks omit it, and OpenAI-compatible servers that omit the tool-call `index`
+  are handled (#33).
 
 ## [0.1.1] - 2026-04-29
 

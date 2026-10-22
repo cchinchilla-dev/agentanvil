@@ -8,6 +8,7 @@ from typing import Any, Literal
 import httpx
 
 from agentanvil.backends._providers._base import ProviderClientBase
+from agentanvil.backends._providers.stream import anthropic_stream
 from agentanvil.backends.pricing import cost_for
 from agentanvil.backends.types import LLMResponse, Message, ToolCall, ToolDef, Usage
 
@@ -129,6 +130,11 @@ class AnthropicClient(ProviderClientBase):
             provider="anthropic",
             raw=raw,
         )
+
+    def normalise_stream(
+        self, chunks: AsyncIterator[dict[str, Any]], *, model: str, start_ns: int
+    ) -> AsyncIterator[LLMResponse]:
+        return anthropic_stream(self, chunks, model=model, start_ns=start_ns)
 
     def _payload(
         self,
