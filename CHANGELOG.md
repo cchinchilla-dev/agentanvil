@@ -15,6 +15,11 @@
 - `record_replay.normalize`: request and response hashes over a normalised copy
   (tool-call ids as ordinals, sorted argument keys, per-call fields dropped;
   timestamps, UUIDs and whitespace optional).
+- Per-call fields of more servers dropped before hashing (llama.cpp `timings`,
+  vLLM `metrics`, SGLang `sglext`, Groq `x_groq`, ...), as field paths such as
+  `choices[].meta_info`; `normalizer.ignore_request` and `ignore_response` add
+  paths for other servers, and tool-call ids become ordinals wherever a message
+  carries them (#30).
 - `ReplayDivergenceError`, a `RecordingError` raised when a session aborts on
   divergence.
 
