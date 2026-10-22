@@ -124,8 +124,10 @@ same request again (a loop, a retry), the k-th call gets the k-th matching
 entry, and an entry already replayed is not served again by either lookup. When
 the matching entries run out, `MockBackend(path)` serves the last one again;
 `MockBackend(path, strict=True)` raises `ReplayMissError` instead. A `step_id`
-that has entries never falls back to the key lookup, and the key lookup serves
-entries recorded without a `step_id` first.
+that has entries never falls back to the key lookup, and the key lookup uses
+only the entries recorded without a `step_id` when there are any: an entry
+recorded under a `step_id` stays for that step, and serves a key lookup only
+when nothing else matches.
 
 **Re-recording replaces.** The first time a `RecordingBackend` records a
 `step_id` (or, without one, a key), it drops the entries that earlier runs left

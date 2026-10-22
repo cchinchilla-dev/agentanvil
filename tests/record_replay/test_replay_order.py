@@ -127,6 +127,18 @@ async def test_re_recording_replaces_the_entries_of_an_earlier_run(tmp_path: Pat
     assert [(await mock.complete(ASK, model=MODEL)).content for _ in range(2)] == ["new 1", "new 2"]
 
 
+async def test_key_lookup_leaves_a_steps_entries_to_it(tmp_path: Path) -> None:
+    out = tmp_path / "rec.json"
+    rec = RecordingBackend(SequenceBackend(["free", "for s"]), out)
+    await rec.complete(ASK, model=MODEL)
+    await rec.complete(ASK, model=MODEL, step_id="s")  # same request, under a step_id
+    mock = MockBackend(out, strict=True)
+    assert (await mock.complete(ASK, model=MODEL)).content == "free"
+    with pytest.raises(ReplayMissError):
+        await mock.complete(ASK, model=MODEL)  # the step's entry is not taken
+    assert (await mock.complete(ASK, model=MODEL, step_id="s")).content == "for s"
+
+
 async def test_step_id_and_key_lookups_share_replayed_entries(tmp_path: Path) -> None:
     out = tmp_path / "rec.json"
     await _record(out, ["once"], step_id="s")

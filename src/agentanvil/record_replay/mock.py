@@ -10,8 +10,9 @@ Repeated calls are paired with recorded entries in order: when a run repeats a
 the k-th matching entry, and an entry replayed once is not served again. Once
 the matching entries run out, the last one is served again (`strict=False`, the
 default) or the call fails (`strict=True`); a `step_id` that has entries never
-falls back to a key lookup. A key lookup serves entries recorded without a
-`step_id` first, so it does not consume one a later step-id call needs.
+falls back to a key lookup. A key lookup uses only the entries recorded without
+a `step_id` when there are any, so it never consumes one a later step-id call
+needs; entries recorded under a `step_id` serve it only when no other matches.
 
 A miss raises `ReplayMissError` (a `RecordingError` and a `KeyError`) — silent
 fallthroughs would defeat the determinism guarantee.
@@ -151,10 +152,9 @@ class MockBackend(LLMBackend):
             tools=tools,
             seed=seed,
         )
-        stepless_first = sorted(
-            self._by_key.get(key, []), key=lambda i: bool(self._entries[i].get("step_id"))
-        )
-        hit = self._take(stepless_first)
+        matches = self._by_key.get(key, [])
+        stepless = [i for i in matches if not self._entries[i].get("step_id")]
+        hit = self._take(stepless or matches)  # a step's entries stay for that step
         if hit is None:
             raise ReplayMissError(
                 f"No recording left for step_id={step_id!r} key={key} in {self._path}"
