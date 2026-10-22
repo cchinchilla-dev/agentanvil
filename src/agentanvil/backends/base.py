@@ -51,7 +51,12 @@ class LLMBackend(abc.ABC):
         tools: list[ToolDef] | None = None,
         seed: int | None = None,
     ) -> AsyncIterator[LLMResponse]:
-        """Issue a streaming completion. Yields incremental `LLMResponse` chunks."""
+        """Issue a streaming completion. Yields incremental `LLMResponse` chunks.
+
+        Text arrives as deltas in ``content``. The last chunk has
+        ``content=None`` and carries the ``tool_calls``, ``usage``, cost and
+        ``finish_reason`` of the whole response.
+        """
 
     @abc.abstractmethod
     def cost_estimate(

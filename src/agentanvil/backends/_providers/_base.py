@@ -5,6 +5,8 @@ inherits from `ProviderClientBase` to share:
 
 - `httpx.AsyncClient` lifecycle and default timeout.
 - Server-Sent-Events (SSE) line iteration helper.
+- The text-delta chunk every streaming normaliser yields.
+- The check that a tool call's arguments are a JSON object.
 - Provider name field used by `DirectBackend`.
 
 Vendor-specific concerns (auth header shape, payload encoding, response
@@ -15,12 +17,15 @@ from __future__ import annotations
 
 import abc
 import json
+import time
 from collections.abc import AsyncIterator, Mapping
+from decimal import Decimal
 from typing import Any
 
 import httpx
 
-from agentanvil.backends.types import LLMResponse, Message, ToolDef
+from agentanvil.backends.types import LLMResponse, Message, ToolDef, Usage
+from agentanvil.exceptions import BackendError
 
 _DEFAULT_TIMEOUT_S = 60.0
 
@@ -71,6 +76,21 @@ class ProviderClientBase(abc.ABC):
                 return
             yield json.loads(payload)
 
+    def _text_delta(
+        self, text: str, *, model: str, raw: dict[str, Any], start_ns: int
+    ) -> LLMResponse:
+        """A streamed text increment; usage, cost and finish reason ride on the last chunk."""
+        return LLMResponse(
+            content=text,
+            usage=Usage(input_tokens=0, output_tokens=0),
+            finish_reason="stop",
+            latency_ms=elapsed_ms(start_ns),
+            cost_usd=Decimal(0),
+            model=model,
+            provider=self.provider,
+            raw=raw,
+        )
+
     @abc.abstractmethod
     async def complete(
         self,
@@ -101,3 +121,36 @@ class ProviderClientBase(abc.ABC):
     @abc.abstractmethod
     def normalise(self, raw: dict[str, Any], *, latency_ms: int) -> LLMResponse:
         """Convert a raw vendor response into the canonical `LLMResponse`."""
+
+    @abc.abstractmethod
+    def normalise_stream(
+        self, chunks: AsyncIterator[dict[str, Any]], *, model: str, start_ns: int
+    ) -> AsyncIterator[LLMResponse]:
+        """Turn raw SSE chunks into text deltas plus one final chunk.
+
+        Each text increment is yielded as it arrives. The final chunk has
+        ``content=None`` and carries the assembled ``tool_calls``, the usage,
+        the cost and the real ``finish_reason``. A vendor error event, a stream
+        with no events and tool-call arguments cut off mid-JSON or not an
+        object raise `BackendError` instead of ending with an empty or broken
+        answer.
+        ``model`` (the requested one) stands in until a chunk names it.
+        """
+
+
+def elapsed_ms(start_ns: int) -> int:
+    return (time.monotonic_ns() - start_ns) // 1_000_000
+
+
+def tool_arguments(provider: str, tool: str, arguments: Any) -> dict[str, Any]:
+    """A tool call's arguments (JSON text or parsed); anything but an object is a `BackendError`."""
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError as exc:
+            raise BackendError(
+                f"{provider} sent arguments for {tool!r} that are not valid JSON"
+            ) from exc
+    if not isinstance(arguments, dict):
+        raise BackendError(f"{provider} sent arguments for {tool!r} that are not a JSON object")
+    return arguments

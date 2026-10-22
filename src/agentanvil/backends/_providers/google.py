@@ -7,7 +7,8 @@ from typing import Any, Literal
 
 import httpx
 
-from agentanvil.backends._providers._base import ProviderClientBase
+from agentanvil.backends._providers._base import ProviderClientBase, tool_arguments
+from agentanvil.backends._providers.stream import google_stream
 from agentanvil.backends.pricing import cost_for
 from agentanvil.backends.types import LLMResponse, Message, ToolCall, ToolDef, Usage
 
@@ -87,7 +88,9 @@ class GoogleClient(ProviderClientBase):
             ToolCall(
                 id=str(part["functionCall"].get("name", "")),
                 name=part["functionCall"]["name"],
-                arguments=part["functionCall"].get("args", {}) or {},
+                arguments=tool_arguments(
+                    "Google", part["functionCall"]["name"], part["functionCall"].get("args") or {}
+                ),
             )
             for part in parts
             if "functionCall" in part
@@ -117,6 +120,11 @@ class GoogleClient(ProviderClientBase):
             provider="google",
             raw=raw,
         )
+
+    def normalise_stream(
+        self, chunks: AsyncIterator[dict[str, Any]], *, model: str, start_ns: int
+    ) -> AsyncIterator[LLMResponse]:
+        return google_stream(self, chunks, model=model, start_ns=start_ns)
 
     def _payload(
         self,

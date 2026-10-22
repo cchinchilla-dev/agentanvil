@@ -8,7 +8,8 @@ from typing import Any, Literal
 
 import httpx
 
-from agentanvil.backends._providers._base import ProviderClientBase
+from agentanvil.backends._providers._base import ProviderClientBase, tool_arguments
+from agentanvil.backends._providers.stream import openai_stream
 from agentanvil.backends.pricing import cost_for
 from agentanvil.backends.types import LLMResponse, Message, ToolCall, ToolDef, Usage
 
@@ -97,7 +98,9 @@ class OpenAIClient(ProviderClientBase):
             ToolCall(
                 id=str(call["id"]),
                 name=call["function"]["name"],
-                arguments=json.loads(call["function"].get("arguments") or "{}"),
+                arguments=tool_arguments(
+                    "OpenAI", call["function"]["name"], call["function"].get("arguments") or "{}"
+                ),
             )
             for call in message.get("tool_calls", []) or []
         ]
@@ -119,6 +122,11 @@ class OpenAIClient(ProviderClientBase):
             provider="openai",
             raw=raw,
         )
+
+    def normalise_stream(
+        self, chunks: AsyncIterator[dict[str, Any]], *, model: str, start_ns: int
+    ) -> AsyncIterator[LLMResponse]:
+        return openai_stream(self, chunks, model=model, start_ns=start_ns)
 
     def _payload(
         self,
@@ -145,6 +153,9 @@ class OpenAIClient(ProviderClientBase):
             ]
         if seed is not None:
             payload["seed"] = seed
+        if stream:
+            # Without it a stream reports no usage, so its cost would be zero.
+            payload["stream_options"] = {"include_usage": True}
         return payload
 
 
