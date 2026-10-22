@@ -11,7 +11,7 @@
   <strong>Testing and evaluation framework for LLM agents.</strong>
 </p>
 
-AgentAnvil tests LLM agents against a formal contract. The target design takes an agent (any Python code, any framework), runs it under the contract, exercises it with test scenarios, scores its behaviour with **hybrid metrics** (objective checks, LLM-as-judge, and human annotation with active sampling), and keeps every run reproducible through a deterministic record/replay envelope. Only part of that pipeline ships today; the status note below says which.
+AgentAnvil tests LLM agents against a formal contract. The target design takes an agent (any Python code, any framework), runs it under the contract, exercises it with test scenarios, checks its behaviour with **several oracles** (contract checks, environment state and protocol conformance, replay-based regression, and a panel of LLM judges backed by human annotation with active sampling), and keeps every run reproducible through a deterministic record/replay envelope. Only part of that pipeline ships today; the status note below says which.
 
 > **Status: early alpha (0.1.x).** The contract model, the LLM backend boundary, the subprocess runner, and record/replay are implemented; a transport proxy that records and replays any runtime at the HTTP boundary is unreleased. Scenario generation, evaluation, and reporting are planned for 0.2.0; the [0.2.0 roadmap](https://github.com/cchinchilla-dev/agentanvil/issues/18) tracks them. Each item below is marked as available or planned.
 
@@ -113,7 +113,7 @@ AgentAnvil
 │                    transport proxy: any runtime, at the HTTP boundary                 unreleased
 ├── Analyzer       — static analysis of agent code (AST, no LLM required)               planned (#5)
 ├── Generator      — test scenarios from contract + agent profile                       planned (#6)
-├── Evaluator      — hybrid metrics: objective + LLM-judge + human (active sampling)    planned (#10, #11)
+├── Evaluator      — oracles: objective + LLM-judge panel + human (active sampling)     planned (#10, #11)
 └── Reporter       — HTML, JSON, and Markdown reports + CI quality gate                 planned (#12)
 ```
 
