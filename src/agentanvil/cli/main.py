@@ -55,5 +55,28 @@ def run(
     console.print("Use [bold]agentanvil validate[/bold] to check your contract.")
 
 
+@app.command()
+def proxy(
+    log_dir: Path = typer.Option(Path("recordings"), "--log-dir", help="Where session logs go."),
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind address (no auth: keep it local)."),
+    port: int = typer.Option(8090, "--port", "-p", help="Port to listen on."),
+    timeout: float = typer.Option(600.0, "--timeout", help="Upstream timeout in seconds."),
+) -> None:
+    """Record and replay OpenAI-compatible LLM calls at the HTTP boundary."""
+    from agentanvil.record_replay.proxy import ProxyServer
+
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        console.print("[yellow]Warning:[/yellow] the proxy has no authentication.")
+    server = ProxyServer((host, port), log_dir, timeout=timeout)
+    shown = f"[{host}]" if ":" in host else host
+    console.print(f"[bold]AgentAnvil proxy[/bold] on http://{shown}:{port} · logs in {log_dir}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        console.print("Stopped.")
+    finally:
+        server.server_close()
+
+
 if __name__ == "__main__":
     app()

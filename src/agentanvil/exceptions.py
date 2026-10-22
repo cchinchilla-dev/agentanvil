@@ -31,5 +31,9 @@ class RecordingError(AgentAnvilError):
     """
 
 
+class ReplayDivergenceError(RecordingError):
+    """Raised when a crossing differs from its reference and the session aborts on divergence."""
+
+
 class ContractValidationError(AgentAnvilError):
     """Raised when an `AgentContract` fails validation."""

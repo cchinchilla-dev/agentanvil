@@ -4,6 +4,10 @@ The record/replay envelope is the primary reproducibility surface of
 AgentAnvil. Every LLM call made through `RecordingBackend` lands in this
 envelope; `MockBackend` then serves bit-for-bit identical responses on replay.
 
+To record a runtime that does not call AgentAnvil's `LLMBackend`, use the
+[transport proxy](transport-proxy.md) instead: it records at the HTTP boundary,
+in its own JSON Lines format.
+
 This document specifies the **v1** schema. Future schema versions bump
 `recording_version` and live alongside v1 — readers must reject envelopes whose
 version they do not understand.
@@ -113,6 +117,11 @@ Fields **excluded** from the key (intentionally):
 1. **`step_id`** — if the caller passes a `step_id` and it matches a recorded entry, use it. Wins even if the request hash differs (allows refactoring callers without re-recording).
 2. **`key`** — SHA-256 over the normalised request as above.
 3. **Miss** → `KeyError`. Silent fallthroughs are forbidden — they would defeat the determinism guarantee.
+
+**Known limitation:** when a run repeats a `step_id` or sends the same request
+twice (a loop, a retry), the last recorded entry wins, and replay returns it for
+every repetition. The transport proxy pairs calls by order instead (the k-th
+call gets the k-th recorded response); the envelope will do the same.
 
 ## Concurrency
 
