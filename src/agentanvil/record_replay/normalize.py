@@ -45,8 +45,6 @@ from agentanvil.record_replay.normalize_fields import (
 JSON: TypeAlias = "str | int | float | bool | None | list[JSON] | dict[str, JSON]"
 JSONObject: TypeAlias = dict[str, JSON]
 
-_OWN_KEYS = frozenset({"content", "tool_calls", "tool_call_id"})
-
 _TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?")
 _UUID = re.compile(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
 _SPACES = re.compile(r"\s+")
@@ -123,7 +121,7 @@ class Normalizer(BaseModel):
             out["tool_calls"] = [self._tool_call(tc, ids) for tc in calls]
         if isinstance(call_id := msg.get("tool_call_id"), str):
             out["tool_call_id"] = self._id(call_id, ids)
-        for key in sorted(out.keys() - _OWN_KEYS):  # citations or reasoning that point at a call
+        for key in sorted(out.keys() - {"tool_call_id"}):  # citations, reasoning, extensions
             out[key] = self._nested_ids(out[key], ids)
         return out
 

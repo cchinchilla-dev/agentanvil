@@ -110,3 +110,21 @@ def test_tool_call_ids_outside_tool_calls_become_ordinals() -> None:
 
     assert response_hash(groq("call_a", "call_a")) == response_hash(groq("call_b", "call_b"))
     assert response_hash(groq("call_a", "call_a")) != response_hash(groq("call_a", "call_z"))
+
+
+@pytest.mark.parametrize("where", ["content", "tool_calls"])
+def test_tool_call_ids_inside_content_and_tool_calls_become_ordinals(where: str) -> None:
+    def reply(call_id: str) -> JSONObject:
+        call: Fields = {
+            "id": call_id,
+            "type": "function",
+            "function": {"name": "f", "arguments": "{}"},
+        }
+        message: Fields = {"role": "assistant", "content": None, "tool_calls": [call]}
+        if where == "content":
+            message["content"] = [{"type": "text", "text": "x", "tool_call_id": call_id}]
+        else:
+            call["extension"] = {"tool_call_id": call_id}
+        return _choice(_response(), message=message)
+
+    assert response_hash(reply("call_a")) == response_hash(reply("call_b"))
