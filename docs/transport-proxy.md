@@ -124,9 +124,13 @@ proxy rewrites seed or order:
 - `seed` is dropped, since the proxy rewrites it (the crossing logs the value
   it sent), and so are the request fields that do not change the completion:
   `stream`, `stream_options`, `num_retries`, `timeout`, `user`, `metadata`;
-- response fields minted per call are dropped: `id`, `created`,
-  `system_fingerprint`, `usage`, `service_tier`;
-- tool-call ids become ordinals in order of first appearance (`call_0`, ...);
+- response fields minted per call are dropped (table below), and so are the
+  per-call fields a client sends back in later turns:
+  `messages[].tool_calls[].extra_content`, `messages[].audio.id` and the `id`,
+  `signature` and `data` of `messages[].reasoning_details[]`;
+- tool-call ids become ordinals in order of first appearance (`call_0`, ...),
+  in `tool_calls`, in `tool_call_id` and wherever else a message carries a
+  `tool_call_id` (citations, reasoning details);
 - tool-call arguments are parsed and re-serialised with sorted keys
   (malformed arguments are kept verbatim).
 
@@ -136,9 +140,45 @@ proxy rewrites seed or order:
 | `timestamps` | `false` | ISO-8601 timestamps inside message text. |
 | `uuids` | `false` | UUIDs inside message text. |
 | `whitespace` | `false` | Runs of whitespace inside message text. |
+| `ignore_request` | `[]` | Request fields at these paths, on top of the defaults. |
+| `ignore_response` | `[]` | Response fields at these paths, on top of the defaults. |
 
 Timestamps, UUIDs and whitespace are off by default: in many tasks dates and
 identifiers are data, not noise.
+
+### Per-call response fields
+
+A path names a field: `timings` is a top-level key, `choices[].meta_info` a key
+of every choice (`[]` means each element of a list). These are dropped by
+default:
+
+| Paths | Sent by |
+|---|---|
+| `id`, `created`, `system_fingerprint`, `usage`, `service_tier` | Any OpenAI-compatible server. Dropping `usage` also drops the timings, costs and cache counts some APIs put there. |
+| `timings`, `__verbose` | llama.cpp, llamafile |
+| `metrics`, `kv_transfer_params`, `ec_transfer_params` | vLLM |
+| `sglext`, `metadata`, `choices[].meta_info` | SGLang |
+| `stats`, `model_info`, `runtime` | LM Studio |
+| `choices[].speculative_decoding`, `choices[].avg_decoded_tokens_per_iter`, `choices[].disaggregated_params`, `choices[].mm_embedding_handle` | TensorRT-LLM |
+| `x_groq`, `usage_breakdown` | Groq |
+| `time_info` | Cerebras |
+| `perf_metrics` | Fireworks |
+| `openrouter_metadata`, `provider`, `choices[].message.reasoning_details[].id`, `.signature`, `.data` | OpenRouter |
+| `choices[].seed` | Together |
+| `choices[].message.tool_calls[].extra_content` | Gemini |
+| `choices[].message.audio.id`, `choices[].message.audio.expires_at` | OpenAI |
+
+A server not listed here may add fields of its own. Every compared crossing
+then shows a `response` divergence although the answers match; add those
+fields to the session's normaliser:
+
+```json
+"normalizer": {"ignore_response": ["x_vendor", "choices[].debug"]}
+```
+
+`model` stays in the hash: it is fixed for a given server configuration.
+Content that legitimately changes between calls, such as live web-search
+citations, stays too: it is a real difference in the answer.
 
 ## Log format
 

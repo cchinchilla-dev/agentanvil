@@ -6,9 +6,15 @@ server mints fresh identifiers, so the hash is taken over a normalised copy:
 
 - request fields that never change the completion (or that the proxy rewrites
   itself, such as `seed`) are dropped;
-- tool-call ids become ordinals in order of first appearance (`call_0`, ...);
+- tool-call ids become ordinals in order of first appearance (`call_0`, ...),
+  wherever a message carries them;
 - tool-call arguments are parsed and re-serialised with sorted keys;
-- per-call response fields (`id`, `created`, `usage`, ...) are dropped.
+- response fields minted per call (`id`, `created`, `usage`, the timings and
+  metrics some servers add, ...) are dropped.
+
+Ignored fields are paths: `timings` is a top-level key, `choices[].meta_info` a
+key of every choice. `Normalizer.ignore_request` and `ignore_response` add paths
+for servers the defaults do not cover.
 
 Timestamps, UUIDs and whitespace inside message text are left alone by default:
 in many benchmarks dates and identifiers are task data, not noise. Each one can
@@ -27,15 +33,19 @@ import json
 import re
 from typing import TypeAlias
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
+
+from agentanvil.record_replay.normalize_fields import (
+    FIELD_PATH,
+    REQUEST_IGNORED,
+    RESPONSE_IGNORED,
+    drop,
+)
 
 JSON: TypeAlias = "str | int | float | bool | None | list[JSON] | dict[str, JSON]"
 JSONObject: TypeAlias = dict[str, JSON]
 
-REQUEST_IGNORED = frozenset(
-    {"seed", "stream", "stream_options", "num_retries", "timeout", "user", "metadata"}
-)
-RESPONSE_IGNORED = frozenset({"id", "created", "system_fingerprint", "usage", "service_tier"})
+_OWN_KEYS = frozenset({"content", "tool_calls", "tool_call_id"})
 
 _TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?")
 _UUID = re.compile(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
@@ -62,19 +72,34 @@ class Normalizer(BaseModel):
     timestamps: bool = False
     uuids: bool = False
     whitespace: bool = False
+    ignore_request: frozenset[str] = frozenset()  # field paths, on top of REQUEST_IGNORED
+    ignore_response: frozenset[str] = frozenset()  # field paths, on top of RESPONSE_IGNORED
+
+    @field_validator("ignore_request", "ignore_response")
+    @classmethod
+    def _check_paths(cls, paths: frozenset[str]) -> frozenset[str]:
+        bad = sorted(p for p in paths if FIELD_PATH.fullmatch(p) is None)
+        if bad:
+            raise ValueError(f"invalid field paths: {bad}")
+        return paths
+
+    @field_serializer("ignore_request", "ignore_response")
+    def _sorted_paths(self, paths: frozenset[str]) -> list[str]:
+        # A set dumps in hash-randomised order: keep the log header byte-stable.
+        return sorted(paths)
 
     def request(self, body: JSONObject) -> JSONObject:
         """Normalised copy of a `/chat/completions` request body."""
         ids: dict[str, str] = {}
-        out = {k: v for k, v in body.items() if k not in REQUEST_IGNORED}
-        if isinstance(messages := body.get("messages"), list):
+        out = drop(body, REQUEST_IGNORED | self.ignore_request)
+        if isinstance(messages := out.get("messages"), list):
             out["messages"] = [self._message(m, ids) for m in messages]
         return out
 
     def response(self, body: JSONObject) -> JSONObject:
         """Normalised copy of a `/chat/completions` response body (ids local to each choice)."""
-        out = {k: v for k, v in body.items() if k not in RESPONSE_IGNORED}
-        if isinstance(choices := body.get("choices"), list):
+        out = drop(body, RESPONSE_IGNORED | self.ignore_response)
+        if isinstance(choices := out.get("choices"), list):
             out["choices"] = [self._choice(c) for c in choices]
         return out
 
@@ -98,6 +123,23 @@ class Normalizer(BaseModel):
             out["tool_calls"] = [self._tool_call(tc, ids) for tc in calls]
         if isinstance(call_id := msg.get("tool_call_id"), str):
             out["tool_call_id"] = self._id(call_id, ids)
+        for key in sorted(out.keys() - _OWN_KEYS):  # citations or reasoning that point at a call
+            out[key] = self._nested_ids(out[key], ids)
+        return out
+
+    def _nested_ids(self, node: JSON, ids: dict[str, str]) -> JSON:
+        if isinstance(node, list):
+            return [self._nested_ids(x, ids) for x in node]
+        if not isinstance(node, dict):
+            return node
+        out: JSONObject = {}
+        for k in sorted(node):  # sorted: ordinals must not depend on the server's key order
+            v = node[k]
+            out[k] = (
+                self._id(v, ids)
+                if k == "tool_call_id" and isinstance(v, str)
+                else self._nested_ids(v, ids)
+            )
         return out
 
     def _part(self, part: JSON) -> JSON:
