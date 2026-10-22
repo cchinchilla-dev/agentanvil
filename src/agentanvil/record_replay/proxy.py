@@ -174,6 +174,10 @@ class _Handler(BaseHTTPRequestHandler):
     def _guarded(self, route: Callable[[], None]) -> None:
         # Anything unexpected (a full disk, a bug) answers 500 instead of a dropped connection.
         try:
+            if self.headers.get("Origin") is not None:  # a browser: no web page may drive the proxy
+                self.close_connection = True  # the body stays unread
+                self._send(403, _error("requests from a browser (Origin header) are refused"))
+                return
             route()
         except Exception as exc:  # noqa: BLE001 — last resort, the client must get an answer
             self.close_connection = True

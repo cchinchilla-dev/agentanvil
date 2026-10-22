@@ -10,7 +10,8 @@
   replay of the first crossings with k-th crossing semantics, and divergence
   checks against a reference (log or abort), hashed under the session's
   normaliser: crossings the reference lacks are `extra`, and closing a session
-  logs the ones it had left (`missing`).
+  logs the ones it had left (`missing`). A reference must end with its `close`
+  record, and requests from a browser (`Origin` header) get 403.
 - `record_replay.normalize`: request and response hashes over a normalised copy
   (tool-call ids as ordinals, sorted argument keys, per-call fields dropped;
   timestamps, UUIDs and whitespace optional).

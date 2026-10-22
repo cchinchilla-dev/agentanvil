@@ -154,7 +154,8 @@ record:
 | `failure` | Upstream error or abort | `reason` (`upstream` or `divergence`), `role`, `k`, `status`, `request_hash`, `divergence`, `response`. |
 | `close` | Session closed | `crossings` and `missing`, per role. |
 
-A log used as `reference` must be complete: a truncated line or a gap in k is
+A log used as `reference` must be complete: a log without its `close` record
+(the session never closed), a truncated line or a gap in k is
 an error, since replaying it would shift every later crossing.
 
 ## Status codes
@@ -164,8 +165,9 @@ an error, since replaying it would shift every later crossing.
 | 200 | Completion, live or replayed. |
 | 201 | Session opened. |
 | 400 | Body is not a JSON object, invalid `Content-Length`, or the request asks for streaming. |
+| 403 | Request from a browser: it carries an `Origin` header. |
 | 404 | Unknown route, session or role, or a session already closed. |
-| 409 | Session already open, its log exists or its reference is unreadable; or the session aborted on divergence. |
+| 409 | Session already open, its log exists or its reference is unreadable or incomplete; or the session aborted on divergence. |
 | 413 | Body larger than 64 MB. |
 | 422 | Invalid session config, including an upstream that is not an `http(s)` URL. |
 | 500 | Unexpected proxy error, such as a full disk; the connection is closed. |
@@ -175,6 +177,7 @@ an error, since replaying it would shift every later crossing.
 ## Limitations
 
 - Chat completions only, without streaming.
-- No authentication: anyone who can reach the port can open sessions.
+- No authentication: anyone who can reach the port can open sessions. Requests
+  with an `Origin` header are refused, so a web page cannot drive the proxy.
 - Each crossing stores the full request, so logs grow with the square of the
   conversation length; compress them when a session closes.

@@ -52,6 +52,7 @@ def _record(tmp_path: Path) -> Path:
     upstream = Upstream()
     for role, n in (("agent", 1), ("user", 2), ("agent", 3)):
         session.handle(role, _body(n), upstream)
+    session.close()
     return session.log_path
 
 
@@ -160,10 +161,17 @@ def test_incomplete_reference_is_rejected(tmp_path: Path) -> None:
     ref = _record(tmp_path)
     lines = ref.read_text(encoding="utf-8").splitlines()
     gap = tmp_path / "gap.jsonl"
-    gap.write_text("\n".join([lines[0], lines[2], lines[3]]) + "\n", encoding="utf-8")
-    with pytest.raises(RecordingError):
+    gap.write_text("\n".join([lines[0], lines[2], lines[3], lines[4]]) + "\n", encoding="utf-8")
+    with pytest.raises(RecordingError, match="gaps"):
         load_reference(gap)
     truncated = tmp_path / "cut.jsonl"
     truncated.write_text("\n".join(lines)[:-10], encoding="utf-8")
-    with pytest.raises(RecordingError):
+    with pytest.raises(RecordingError, match="malformed"):
         load_reference(truncated)
+
+
+def test_a_reference_without_its_close_record_is_rejected(tmp_path: Path) -> None:
+    session = ProxySession(SessionConfig(session_id="open", roles=ROLES), tmp_path)
+    session.handle("agent", _body(1), Upstream())  # never closed: a run cut short
+    with pytest.raises(RecordingError, match="close"):
+        load_reference(session.log_path)

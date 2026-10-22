@@ -60,6 +60,7 @@ def test_the_reference_is_hashed_under_the_session_normalizer(tmp_path: Path) ->
 
     recorder = ProxySession(SessionConfig(session_id="ref", roles=ROLES), tmp_path)
     recorder.handle("agent", ask("a  b"), Upstream())  # recorded under the default normalizer
+    recorder.close()
     config = SessionConfig(
         session_id="w",
         roles=ROLES,

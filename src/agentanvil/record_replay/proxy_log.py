@@ -128,12 +128,14 @@ class Close(BaseModel):
 def load_reference(path: Path, normalizer: Normalizer = DEFAULT) -> dict[str, list[Crossing]]:
     """Crossings of a session log grouped by role, in crossing order, hashed under `normalizer`.
 
-    The reference must be complete: a truncated line or a gap in k is an error,
-    since replaying it would silently shift every later crossing. Hashes are
-    recomputed from the stored request and response, so a session compares them
-    under its own normalizer whatever the reference was recorded with.
+    The reference must be complete: a log without its `close` record (a run cut
+    short), a truncated line or a gap in k is an error, since replaying it would
+    silently shift or invent later crossings. Hashes are recomputed from the
+    stored request and response, so a session compares them under its own
+    normalizer whatever the reference was recorded with.
     """
     by_role: dict[str, list[Crossing]] = {}
+    closed = False
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as exc:
@@ -143,7 +145,10 @@ def load_reference(path: Path, normalizer: Normalizer = DEFAULT) -> dict[str, li
             continue
         try:
             obj = json.loads(line)
-            if obj.get("kind") == "crossing":
+            if obj.get("kind") == "close":
+                Close.model_validate(obj)
+                closed = True
+            elif obj.get("kind") == "crossing":
                 crossing = Crossing.model_validate(obj)
                 crossing.request_hash = request_hash(crossing.request, normalizer)
                 crossing.response_hash = response_hash(crossing.response, normalizer)
@@ -154,6 +159,8 @@ def load_reference(path: Path, normalizer: Normalizer = DEFAULT) -> dict[str, li
         crossings.sort(key=lambda c: c.k)
         if [c.k for c in crossings] != list(range(len(crossings))):
             raise RecordingError(f"{path}: crossings of role {role!r} have gaps")
+    if not closed:
+        raise RecordingError(f"{path}: no close record, the session never closed")
     return by_role
 
 

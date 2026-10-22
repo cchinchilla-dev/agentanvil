@@ -164,6 +164,19 @@ def test_an_unexpected_error_answers_500(proxy: Proxy, monkeypatch: pytest.Monke
     assert "OSError" in reply.json()["error"]["message"]
 
 
+def test_a_request_from_a_browser_is_refused(proxy: Proxy) -> None:
+    config = {"session_id": "web", "roles": {"agent": {"upstream": "http://up/v1"}}}
+    reply = proxy.http.post(
+        "/_anvil/sessions",
+        content=json.dumps(config),
+        headers={"Content-Type": "text/plain", "Origin": "https://page.example"},
+    )
+    assert reply.status_code == 403
+    assert reply.headers["connection"] == "close"
+    assert proxy.http.delete("/_anvil/sessions/web", headers={"Origin": "null"}).status_code == 403
+    assert proxy.open("web").status_code == 201  # nothing was opened by the refused call
+
+
 def test_an_upstream_that_is_not_a_url_is_refused_at_open(proxy: Proxy) -> None:
     config = {"session_id": "e8", "roles": {"agent": {"upstream": "localhost:8000"}}}
     assert proxy.http.post("/_anvil/sessions", json=config).status_code == 422
