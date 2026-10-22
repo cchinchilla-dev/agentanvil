@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 import httpx
 
-from agentanvil.backends._providers._base import ProviderClientBase
+from agentanvil.backends._providers._base import ProviderClientBase, tool_arguments
 from agentanvil.backends._providers.stream import anthropic_stream
 from agentanvil.backends.pricing import cost_for
 from agentanvil.backends.types import LLMResponse, Message, ToolCall, ToolDef, Usage
@@ -108,7 +108,9 @@ class AnthropicClient(ProviderClientBase):
                     ToolCall(
                         id=str(block["id"]),
                         name=block["name"],
-                        arguments=block.get("input", {}) or {},
+                        arguments=tool_arguments(
+                            "Anthropic", block["name"], block.get("input") or {}
+                        ),
                     )
                 )
 

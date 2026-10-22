@@ -52,6 +52,9 @@
   mid-JSON raise `BackendError`; the requested model prices a stream whose
   chunks omit it, and OpenAI-compatible servers that omit the tool-call `index`
   are handled (#33).
+- `DirectBackend` raises `BackendError` when a tool call's arguments are not a
+  JSON object (or, from OpenAI, not valid JSON), in `complete` and `stream`,
+  instead of a validation error or empty `arguments` (#33).
 
 ## [0.1.1] - 2026-04-29
 

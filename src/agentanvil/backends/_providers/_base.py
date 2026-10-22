@@ -6,6 +6,7 @@ inherits from `ProviderClientBase` to share:
 - `httpx.AsyncClient` lifecycle and default timeout.
 - Server-Sent-Events (SSE) line iteration helper.
 - The text-delta chunk every streaming normaliser yields.
+- The check that a tool call's arguments are a JSON object.
 - Provider name field used by `DirectBackend`.
 
 Vendor-specific concerns (auth header shape, payload encoding, response
@@ -24,6 +25,7 @@ from typing import Any
 import httpx
 
 from agentanvil.backends.types import LLMResponse, Message, ToolDef, Usage
+from agentanvil.exceptions import BackendError
 
 _DEFAULT_TIMEOUT_S = 60.0
 
@@ -129,11 +131,26 @@ class ProviderClientBase(abc.ABC):
         Each text increment is yielded as it arrives. The final chunk has
         ``content=None`` and carries the assembled ``tool_calls``, the usage,
         the cost and the real ``finish_reason``. A vendor error event, a stream
-        with no events and tool-call arguments cut off mid-JSON raise
-        `BackendError` instead of ending with an empty or broken answer.
+        with no events and tool-call arguments cut off mid-JSON or not an
+        object raise `BackendError` instead of ending with an empty or broken
+        answer.
         ``model`` (the requested one) stands in until a chunk names it.
         """
 
 
 def elapsed_ms(start_ns: int) -> int:
     return (time.monotonic_ns() - start_ns) // 1_000_000
+
+
+def tool_arguments(provider: str, tool: str, arguments: Any) -> dict[str, Any]:
+    """A tool call's arguments (JSON text or parsed); anything but an object is a `BackendError`."""
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError as exc:
+            raise BackendError(
+                f"{provider} sent arguments for {tool!r} that are not valid JSON"
+            ) from exc
+    if not isinstance(arguments, dict):
+        raise BackendError(f"{provider} sent arguments for {tool!r} that are not a JSON object")
+    return arguments

@@ -12,7 +12,7 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
-from agentanvil.backends._providers._base import ProviderClientBase, elapsed_ms
+from agentanvil.backends._providers._base import ProviderClientBase, elapsed_ms, tool_arguments
 from agentanvil.backends.types import LLMResponse
 from agentanvil.exceptions import BackendError
 
@@ -163,7 +163,7 @@ def parse_arguments(provider: str, tool: str, raw: str) -> dict[str, Any]:
         arguments = json.loads(raw or "{}")
     except json.JSONDecodeError as exc:
         raise BackendError(f"{provider} stream ended inside the arguments of {tool!r}") from exc
-    return arguments if isinstance(arguments, dict) else {}
+    return tool_arguments(provider, tool, arguments)
 
 
 def _call_index(fragment: dict[str, Any], calls: dict[int, dict[str, Any]]) -> int:

@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 import httpx
 
-from agentanvil.backends._providers._base import ProviderClientBase
+from agentanvil.backends._providers._base import ProviderClientBase, tool_arguments
 from agentanvil.backends._providers.stream import openai_stream
 from agentanvil.backends.pricing import cost_for
 from agentanvil.backends.types import LLMResponse, Message, ToolCall, ToolDef, Usage
@@ -98,7 +98,9 @@ class OpenAIClient(ProviderClientBase):
             ToolCall(
                 id=str(call["id"]),
                 name=call["function"]["name"],
-                arguments=json.loads(call["function"].get("arguments") or "{}"),
+                arguments=tool_arguments(
+                    "OpenAI", call["function"]["name"], call["function"].get("arguments") or "{}"
+                ),
             )
             for call in message.get("tool_calls", []) or []
         ]
