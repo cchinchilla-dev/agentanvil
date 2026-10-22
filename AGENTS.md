@@ -12,6 +12,7 @@ Project rules for contributors and AI coding assistants. Any assistant that read
 - `uv run ruff format src/ tests/` — format
 - `uv run mypy src/` — strict type check
 - `uv run agentanvil validate path/to/contract.yaml` — validate a contract (`run` is a placeholder until 0.2.0)
+- `uv run agentanvil proxy --log-dir recordings` — run the transport proxy ([docs/transport-proxy.md](docs/transport-proxy.md))
 
 ## Rules
 
@@ -19,7 +20,7 @@ Project rules for contributors and AI coding assistants. Any assistant that read
 
 **Models**: Pydantic v2 everywhere. No `Any` in public signatures. `from __future__ import annotations` at the top of every module that uses type hints.
 
-**LLM calls**: always go through the `LLMBackend` boundary in `src/agentanvil/backends/base.py`. Never import provider SDKs or call LLM HTTP endpoints directly from business logic. `DirectBackend` (httpx-only, no AgentLoom) is implemented; `AgentLoomBackend` (recommended once available, pulls resilience and observability from AgentLoom) is planned in #9.
+**LLM calls**: always go through the `LLMBackend` boundary in `src/agentanvil/backends/base.py`. Never import provider SDKs or call LLM HTTP endpoints directly from business logic. The one exception is the transport proxy (`record_replay/proxy.py`), which forwards OpenAI-compatible JSON with `httpx` because the payload on the wire is what it records. `DirectBackend` (httpx-only, no AgentLoom) is implemented; `AgentLoomBackend` (recommended once available, pulls resilience and observability from AgentLoom) is planned in #9.
 
 **Contracts**: the source of truth for what to test. Every module, current and planned (Generator, Evaluator, Reporter), derives its behaviour from the `AgentContract`.
 
@@ -40,10 +41,10 @@ Implemented (0.1.x):
 - `core/run_record.py`, `core/report.py` — run metadata and report models
 - `backends/base.py` — `LLMBackend` ABC (the portability boundary)
 - `backends/direct.py` — httpx-only backend for OpenAI, Anthropic, Google
-- `record_replay/` — `RecordingBackend` and `MockBackend` for deterministic replay
+- `record_replay/` — `RecordingBackend` and `MockBackend` for deterministic replay; transport proxy (`proxy.py`, `proxy_session.py`, `proxy_layers.py`, `proxy_log.py`, `normalize.py`) for any runtime at the HTTP boundary
 - `runner/` — `Runner` ABC and `SubprocessRunner`
 - `exceptions.py` — `AgentAnvilError` hierarchy
-- `cli/main.py` — Typer CLI (`version`, `validate`; `run` is a placeholder)
+- `cli/main.py` — Typer CLI (`version`, `validate`, `proxy`; `run` is a placeholder)
 
 Planned (0.2.0, roadmap #18): `backends/agentloom.py` (#9), analyzer (#5), generator (#6), `DockerRunner` (#7), evaluator (#10, #11), reporter (#12). K8sRunner comes later.
 
@@ -59,7 +60,7 @@ Reviews (local assistant passes during development, and automated PR review) che
 
 1. **Async safety** — any `asyncio.` import or raw asyncio primitive.
 2. **Types** — `Any` in public signatures; data structures that are not Pydantic models.
-3. **Backend boundary** — provider SDK imports or LLM HTTP calls outside `LLMBackend` implementations.
+3. **Backend boundary** — provider SDK imports or LLM HTTP calls outside `LLMBackend` implementations and the transport proxy.
 4. **Portability** — any import of `agentloom` outside the optional AgentLoom backend; it must stay guarded so `pip install agentanvil` works without extras.
 5. **Contract as source of truth** — hardcoded policies or criteria that should come from the `AgentContract`.
 6. **Observability names** — span attribute or metric strings hardcoded instead of imported from `agentloom.contracts` (once AgentLoom 0.5.0 ships it).

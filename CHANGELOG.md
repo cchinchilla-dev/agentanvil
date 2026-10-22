@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Added
+- Transport proxy (`agentanvil proxy`, `record_replay.ProxyServer`, #21): records and
+  replays any runtime at the HTTP boundary, in front of an OpenAI-compatible
+  server. Sessions per episode and boundary (`/s/<session>/<role>/v1`), JSON Lines
+  logs, seed rewriting per role and crossing, seeded tool-order permutation,
+  replay of the first crossings with k-th crossing semantics, and divergence
+  checks against a reference (log or abort), hashed under the session's
+  normaliser: crossings the reference lacks are `extra`, and closing a session
+  logs the ones it had left (`missing`).
+- `record_replay.normalize`: request and response hashes over a normalised copy
+  (tool-call ids as ordinals, sorted argument keys, per-call fields dropped;
+  timestamps, UUIDs and whitespace optional).
+- `ReplayDivergenceError`, a `RecordingError` raised when a session aborts on
+  divergence.
+
 ## [0.1.1] - 2026-04-29
 
 ### Added

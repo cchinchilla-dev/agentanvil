@@ -13,7 +13,7 @@
 
 AgentAnvil tests LLM agents against a formal contract. The target design takes an agent (any Python code, any framework), runs it under the contract, exercises it with test scenarios, scores its behaviour with **hybrid metrics** (objective checks, LLM-as-judge, and human annotation with active sampling), and keeps every run reproducible through a deterministic record/replay envelope. Only part of that pipeline ships today; the status note below says which.
 
-> **Status: early alpha (0.1.x).** The contract model, the LLM backend boundary, the subprocess runner, and record/replay are implemented. Scenario generation, evaluation, and reporting are planned for 0.2.0; the [0.2.0 roadmap](https://github.com/cchinchilla-dev/agentanvil/issues/18) tracks them. Each item below is marked as available or planned.
+> **Status: early alpha (0.1.x).** The contract model, the LLM backend boundary, the subprocess runner, and record/replay are implemented; a transport proxy that records and replays any runtime at the HTTP boundary is unreleased. Scenario generation, evaluation, and reporting are planned for 0.2.0; the [0.2.0 roadmap](https://github.com/cchinchilla-dev/agentanvil/issues/18) tracks them. Each item below is marked as available or planned.
 
 AgentAnvil is portable across the LLM ecosystem. All LLM access goes through one `LLMBackend` boundary with two implementations:
 
@@ -89,6 +89,16 @@ anyio.run(main)
 
 `agentanvil run` exists but is a placeholder until the evaluation pipeline lands in 0.2.0 ([#18](https://github.com/cchinchilla-dev/agentanvil/issues/18)).
 
+## Record and replay at the HTTP boundary (unreleased)
+
+`agentanvil proxy` runs an OpenAI-compatible proxy in front of any server (vLLM, SGLang, a hosted API), so agents that do not call AgentAnvil's backend can be recorded too: point the agent's base URL at it and every call is logged. A later session can replay those calls, replay only the first ones and continue live, or compare a new run with the recorded one call by call. Per session, it also fixes or varies the sampling seed and the order of tools. Details in [docs/transport-proxy.md](docs/transport-proxy.md).
+
+```bash
+agentanvil proxy --log-dir recordings
+# open a session (POST /_anvil/sessions), then use
+# http://127.0.0.1:8090/s/<session>/agent/v1 as the agent's base URL
+```
+
 ## Architecture
 
 ```
@@ -100,6 +110,7 @@ AgentAnvil
 ├── Runner         — SubprocessRunner                                                   available
 │                    DockerRunner (#7); K8sRunner later                                 planned
 ├── Record/Replay  — deterministic replay envelope for LLM responses                    available
+│                    transport proxy: any runtime, at the HTTP boundary                 unreleased
 ├── Analyzer       — static analysis of agent code (AST, no LLM required)               planned (#5)
 ├── Generator      — test scenarios from contract + agent profile                       planned (#6)
 ├── Evaluator      — hybrid metrics: objective + LLM-judge + human (active sampling)    planned (#10, #11)
