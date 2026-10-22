@@ -4,8 +4,18 @@ Wraps any `LLMBackend`. On every `complete` / `stream` call:
 
 1. Forwards to the wrapped backend.
 2. Builds a stable `key = sha256(normalised request)`.
-3. Appends `{key, step_id, request, response}` to the envelope.
+3. Appends `{key, step_id, request, response}` to the envelope. The first
+   time a recorder records a `step_id` (or, without one, a key), it drops the
+   entries earlier runs left for it, so a re-recorded call never replays stale
+   entries; repeats within one recorder accumulate in order.
 4. Flushes to disk immediately so a crash mid-run does not lose entries.
+
+A streamed call becomes one entry once the stream ends: `chunks` keeps every
+chunk in order and `response` is the whole answer (the joined text with the
+last chunk's tool calls, usage and finish reason). The last chunk reaches the
+caller only after the entry is recorded, so a caller that stops at it still
+leaves a recording; every chunk therefore arrives one chunk late. A stream
+abandoned before its end is not recorded.
 
 Concurrent callers serialise via `anyio.Lock` (mirrors AgentLoom's #107 fix).
 """
@@ -57,6 +67,10 @@ def request_key(
     return "sha256:" + hashlib.sha256(payload).hexdigest()
 
 
+def _ident(entry: dict[str, Any]) -> tuple[str, str]:
+    return ("step_id", entry["step_id"]) if entry.get("step_id") else ("key", entry["key"])
+
+
 class RecordingBackend(LLMBackend):
     """Wrapper that records every call to a JSON envelope."""
 
@@ -78,6 +92,7 @@ class RecordingBackend(LLMBackend):
         self._wrapped = wrapped
         self._path = Path(output_path)
         self._lock = anyio.Lock()
+        self._recorded_ids: set[tuple[str, str]] = set()
         self._envelope: dict[str, Any] = {
             "recording_version": RECORDING_VERSION,
             "agentanvil_version": agentanvil_version,
@@ -131,6 +146,7 @@ class RecordingBackend(LLMBackend):
         tools: list[ToolDef] | None = None,
         seed: int | None = None,
     ) -> AsyncIterator[LLMResponse]:
+        chunks: list[LLMResponse] = []
         async for chunk in self._wrapped.stream(
             messages,
             model=model,
@@ -139,6 +155,11 @@ class RecordingBackend(LLMBackend):
             tools=tools,
             seed=seed,
         ):
+            if chunks:
+                yield chunks[-1]
+            chunks.append(chunk)
+        if chunks:
+            text = "".join(c.content for c in chunks if c.content)
             await self._record(
                 messages,
                 model=model,
@@ -146,10 +167,11 @@ class RecordingBackend(LLMBackend):
                 max_tokens=max_tokens,
                 tools=tools,
                 seed=seed,
-                response=chunk,
+                response=chunks[-1].model_copy(update={"content": text or None}),
                 step_id=None,
+                chunks=chunks,
             )
-            yield chunk
+            yield chunks[-1]
 
     def cost_estimate(
         self,
@@ -173,6 +195,7 @@ class RecordingBackend(LLMBackend):
         seed: int | None,
         response: LLMResponse,
         step_id: str | None,
+        chunks: list[LLMResponse] | None = None,
     ) -> None:
         key = request_key(
             messages,
@@ -182,7 +205,7 @@ class RecordingBackend(LLMBackend):
             tools=tools,
             seed=seed,
         )
-        entry = {
+        entry: dict[str, Any] = {
             "key": key,
             "step_id": step_id,
             "request": {
@@ -195,8 +218,15 @@ class RecordingBackend(LLMBackend):
             },
             "response": response.model_dump(mode="json"),
         }
+        if chunks is not None:
+            entry["chunks"] = [c.model_dump(mode="json") for c in chunks]
         async with self._lock:
-            self._envelope["entries"].append(entry)
+            entries = self._envelope["entries"]
+            ident = ("step_id", step_id) if step_id else ("key", key)
+            if ident not in self._recorded_ids:
+                self._recorded_ids.add(ident)
+                entries[:] = [e for e in entries if _ident(e) != ident]
+            entries.append(entry)
             self._flush()
 
     def _flush(self) -> None:
