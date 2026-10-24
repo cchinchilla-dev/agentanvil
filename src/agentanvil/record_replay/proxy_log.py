@@ -4,7 +4,10 @@ A session log is JSON Lines: a `session` header with the configuration, then one
 `crossing` per completed call and one `failure` per upstream error or abort, and
 a `close` record when the driver closes the session. A crossing keeps the request
 as the client sent it (before any rewrite) plus the seed and tool order the proxy
-applied, so every rewrite can be reproduced.
+applied, so every rewrite can be reproduced. A crossing that a fault changed (#36)
+also keeps the fault's `perturbation`, and the request sent upstream or the
+response the upstream gave when the fault changed them; records without faults
+leave those fields out.
 """
 
 from __future__ import annotations
@@ -12,21 +15,24 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 from urllib.parse import urlsplit
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    SerializerFunctionWrapHandler,
     ValidationError,
     field_serializer,
     field_validator,
+    model_serializer,
     model_validator,
 )
 
 from agentanvil.exceptions import RecordingError
 from agentanvil.record_replay.normalize import DEFAULT, Normalizer, request_hash, response_hash
+from agentanvil.record_replay.perturb import Fault, Perturbation
 
 NAME = r"^[A-Za-z0-9_-]{1,64}$"  # session ids and roles become file names and URL segments
 
@@ -68,6 +74,7 @@ class SessionConfig(BaseModel):
     replay_until: int = 0  # crossings with a lower reference index are served from the reference
     on_divergence: Literal["log", "abort"] = "log"
     normalizer: Normalizer = DEFAULT
+    perturb: tuple[Fault, ...] = ()  # faults injected into live crossings (#36)
 
     @model_validator(mode="after")
     def _check(self) -> SessionConfig:
@@ -76,6 +83,13 @@ class SessionConfig(BaseModel):
             raise ValueError(f"invalid role names: {bad}")
         if self.replay_until and self.reference is None:
             raise ValueError("replay_until needs a reference recording")
+        if unknown := sorted({f.role for f in self.perturb} - set(self.roles)):
+            raise ValueError(f"faults on roles the session does not have: {unknown}")
+        crossings = [(f.role, f.at) for f in self.perturb]
+        if len(set(crossings)) != len(crossings):
+            raise ValueError("at most one fault per crossing")
+        if self.perturb and self.on_divergence == "abort":
+            raise ValueError("a session with faults diverges by design: on_divergence must be log")
         return self
 
     @field_serializer("permute_roles")
@@ -83,8 +97,24 @@ class SessionConfig(BaseModel):
         return sorted(roles)  # a set dumps in hash-randomised order: keep the header byte-stable
 
 
-class Crossing(BaseModel):
+class _Record(BaseModel):
+    """A log record that leaves out its unset fault fields: logs without faults keep their shape."""
+
+    _FAULT_FIELDS: ClassVar[tuple[str, ...]] = ()
+
+    @model_serializer(mode="wrap")
+    def _without_unset_faults(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data: dict[str, Any] = handler(self)
+        for key in self._FAULT_FIELDS:
+            if data.get(key) is None:
+                data.pop(key, None)
+        return data
+
+
+class Crossing(_Record):
     """One completed call through a boundary: the k-th of its role, the index-th of the session."""
+
+    _FAULT_FIELDS = ("perturbation", "upstream_request", "upstream_response")
 
     kind: Literal["crossing"] = "crossing"
     session_id: str
@@ -100,13 +130,19 @@ class Crossing(BaseModel):
     response: dict[str, Any]
     latency_ms: int
     divergence: Divergence = Field(default_factory=list)
+    perturbation: Perturbation | None = None
+    upstream_request: dict[str, Any] | None = None  # when a fault changed the request
+    upstream_response: dict[str, Any] | None = None  # when a fault changed the response
 
 
-class Failure(BaseModel):
-    """A call that did not complete a crossing: an upstream error or an abort on divergence."""
+class Failure(_Record):
+    """A call that did not complete a crossing (an upstream error, injected or not, or an abort
+    on divergence), or a fault that found nothing to act on (`perturbation_miss`)."""
+
+    _FAULT_FIELDS = ("fault",)
 
     kind: Literal["failure"] = "failure"
-    reason: Literal["upstream", "divergence"]
+    reason: Literal["upstream", "divergence", "perturbation_miss"]
     session_id: str
     role: str
     k: int
@@ -114,6 +150,7 @@ class Failure(BaseModel):
     request_hash: str
     divergence: Divergence = Field(default_factory=list)
     response: dict[str, Any] = Field(default_factory=dict)
+    fault: Fault | None = None  # the fault that injected the error, or that missed
 
 
 class Close(BaseModel):

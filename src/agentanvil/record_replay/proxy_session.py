@@ -17,7 +17,10 @@ What a session does to each crossing (configured in `SessionConfig`):
   by response hash when live) under this session's normalizer, a crossing the
   reference does not have is `extra`, and the result logged;
   `on_divergence="abort"` raises `ReplayDivergenceError` and refuses every later
-  call of the session. Closing logs the crossings the reference had left.
+  call of the session. Closing logs the crossings the reference had left;
+- faults: the `perturb` list changes live crossings (`proxy_faults`, #36). The
+  divergence checks compare the client's request and the upstream's response,
+  never what a fault changed.
 
 Calls within a session are serialised, so crossing order never depends on timing.
 """
@@ -28,9 +31,12 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Literal
 
 from agentanvil.exceptions import RecordingError, ReplayDivergenceError
 from agentanvil.record_replay.normalize import JSONObject, request_hash, response_hash
+from agentanvil.record_replay.perturb import Fault, Perturbation
+from agentanvil.record_replay.proxy_faults import SessionFaults
 from agentanvil.record_replay.proxy_layers import derive_seed, permutation, permute_tool_runs
 from agentanvil.record_replay.proxy_log import (
     Close,
@@ -52,12 +58,23 @@ Forward = Callable[[str, JSONObject], tuple[int, JSONObject]]
 class ProxySession:
     """One episode behind the proxy."""
 
-    def __init__(self, config: SessionConfig, log_dir: Path) -> None:
+    def __init__(
+        self,
+        config: SessionConfig,
+        log_dir: Path,
+        *,
+        in_flight: Callable[[], int] = lambda: 1,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
         self.config = config
         self.log_path = log_dir / f"{config.session_id}.jsonl"
         self._reference = (
             load_reference(config.reference, config.normalizer) if config.reference else {}
         )
+        self._faults = SessionFaults(
+            config.perturb, config.normalizer, sleep=sleep, in_flight=in_flight
+        )
+        self._faults.refuse_replayed(self._reference, config.replay_until)
         self._k: dict[str, int] = {}
         self._index = 0
         self._aborted = self._closed = False
@@ -86,27 +103,30 @@ class ProxySession:
             self._guard(role, k, req_hash, diverged, {})
             if ref is not None and ref.index < self.config.replay_until:
                 return 200, self._commit(role, k, body, req_hash, ref.response, diverged)
-            upstream, seed, order = self._rewrite(role, k, body)
+            fault = self._faults.at(role, k)
+            if (injected := self._faults.injected_error(fault)) is not None:
+                status, resp = injected
+                self._fail(role, k, req_hash, status, resp, fault=fault)
+                return status, resp
+            sent, applied = self._faults.on_request(fault, k, body)
+            upstream, seed, order = self._rewrite(role, k, sent)
             start = time.perf_counter()
             status, resp = forward(self.config.roles[role].upstream, upstream)
             latency_ms = round((time.perf_counter() - start) * 1000)
             if status != 200:
-                failure = Failure(
-                    reason="upstream",
-                    session_id=self.config.session_id,
-                    role=role,
-                    k=k,
-                    status=status,
-                    request_hash=req_hash,
-                    response=resp,
-                )
-                append(self.log_path, failure)
+                self._fail(role, k, req_hash, status, resp)
                 return status, resp
             if ref is not None and ref.response_hash != response_hash(resp, self.config.normalizer):
                 diverged.append("response")
             self._guard(role, k, req_hash, diverged, resp)
+            answer, answered = self._faults.on_response(fault, k, body, resp)
+            applied = applied or answered or self._faults.delay(fault, answer)
+            if fault is not None and applied is None and fault.op != "upstream_error":
+                self._fail(role, k, req_hash, 200, {}, fault=fault, reason="perturbation_miss")
+            live = (seed, order, latency_ms)
+            changed = (sent if sent is not body else None, resp if answer is not resp else None)
             return 200, self._commit(
-                role, k, body, req_hash, resp, diverged, live=(seed, order, latency_ms)
+                role, k, body, req_hash, answer, diverged, live, applied, changed
             )
 
     def close(self) -> dict[str, int]:
@@ -147,6 +167,29 @@ class ProxySession:
             f"session {self.config.session_id!r}: {role} crossing {k} diverged ({diverged})"
         )
 
+    def _fail(
+        self,
+        role: str,
+        k: int,
+        req_hash: str,
+        status: int,
+        resp: JSONObject,
+        *,
+        fault: Fault | None = None,
+        reason: Literal["upstream", "perturbation_miss"] = "upstream",
+    ) -> None:
+        failure = Failure(
+            reason=reason,
+            session_id=self.config.session_id,
+            role=role,
+            k=k,
+            status=status,
+            request_hash=req_hash,
+            response=resp,
+            fault=fault,
+        )
+        append(self.log_path, failure)
+
     def _commit(
         self,
         role: str,
@@ -156,6 +199,8 @@ class ProxySession:
         resp: JSONObject,
         diverged: Divergence,
         live: tuple[int | None, list[int] | None, int] | None = None,
+        perturbation: Perturbation | None = None,
+        changed: tuple[JSONObject | None, JSONObject | None] = (None, None),
     ) -> JSONObject:
         seed, order, latency_ms = live if live else (None, None, 0)
         crossing = Crossing(
@@ -172,8 +217,12 @@ class ProxySession:
             response=resp,
             latency_ms=latency_ms,
             divergence=diverged,
+            perturbation=perturbation,
+            upstream_request=changed[0],
+            upstream_response=changed[1],
         )
         append(self.log_path, crossing)
+        self._faults.remember(role, resp)
         self._k[role] = k + 1
         self._index += 1
         return resp

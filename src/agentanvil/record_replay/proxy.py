@@ -25,7 +25,7 @@ import json
 import re
 import socket
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -62,6 +62,23 @@ class ProxyServer(ThreadingHTTPServer):
         self.sessions: dict[str, ProxySession] = {}
         self.sessions_lock = threading.Lock()
         self.client = client or httpx.Client(timeout=timeout)
+        self._in_flight = 0  # completion requests being served, for load-dependent delays (#36)
+        self._in_flight_lock = threading.Lock()
+
+    def in_flight(self) -> int:
+        """Completion requests the proxy is serving right now, across sessions."""
+        return self._in_flight
+
+    @contextlib.contextmanager
+    def serving(self) -> Iterator[None]:
+        """Count one completion request as in flight while it is served."""
+        with self._in_flight_lock:
+            self._in_flight += 1
+        try:
+            yield
+        finally:
+            with self._in_flight_lock:
+                self._in_flight -= 1
 
     def server_close(self) -> None:
         super().server_close()
@@ -140,7 +157,7 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(409, taken)
                 return
         try:  # loads the reference: outside the lock, so other sessions keep their pace
-            session = ProxySession(config, self.server.log_dir)
+            session = ProxySession(config, self.server.log_dir, in_flight=self.server.in_flight)
         except RecordingError as exc:
             self._send(409, _error(str(exc)))
             return
@@ -161,7 +178,8 @@ class _Handler(BaseHTTPRequestHandler):
             return
         forward = self.server.forward(self.headers.get("Authorization"))
         try:
-            status, response = session.handle(role, body, forward)
+            with self.server.serving():
+                status, response = session.handle(role, body, forward)
         except ReplayDivergenceError as exc:
             self._send(409, _error(str(exc)))
         except RecordingError as exc:

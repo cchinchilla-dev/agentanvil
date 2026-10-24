@@ -3,6 +3,20 @@
 ## [Unreleased]
 
 ### Added
+- Fault injection in the transport proxy (#36): a session's `perturb` list
+  applies one operator to one crossing of a role, on live crossings only, so
+  `replay_until` doubles as the injection point. On the request: `tool_result`,
+  `tool_error`, `drop_instruction`, `user_rewrite`; on the response: `tool_call`,
+  `output_rewrite`, `inflate`, `loop`, `delay`; and `upstream_error`, which
+  answers 429, 500 or 504 without calling the upstream and without consuming
+  the crossing. Choices inside an operator come from a seed. The crossing logs
+  the `perturbation` (op, parameters, site, hashes before and after), and the
+  request sent upstream or the upstream's answer when the fault changed them;
+  `request_hash` and the divergence checks stay on what the client sent and
+  the upstream answered. A fault with nothing to act on logs a
+  `perturbation_miss` failure. Faults with `on_divergence: abort` are refused
+  (422), and so is a fault on a replayed crossing (409). Logs of sessions
+  without faults keep their shape.
 - Transport proxy (`agentanvil proxy`, `record_replay.ProxyServer`, #21): records and
   replays any runtime at the HTTP boundary, in front of an OpenAI-compatible
   server. Sessions per episode and boundary (`/s/<session>/<role>/v1`), JSON Lines

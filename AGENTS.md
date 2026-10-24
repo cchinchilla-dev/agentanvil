@@ -41,7 +41,7 @@ Implemented (0.1.x):
 - `core/run_record.py`, `core/report.py` — run metadata and report models
 - `backends/base.py` — `LLMBackend` ABC (the portability boundary)
 - `backends/direct.py` — httpx-only backend for OpenAI, Anthropic, Google
-- `record_replay/` — `RecordingBackend` and `MockBackend` for deterministic replay; transport proxy (`proxy.py`, `proxy_session.py`, `proxy_layers.py`, `proxy_log.py`, `normalize.py`) for any runtime at the HTTP boundary
+- `record_replay/` — `RecordingBackend` and `MockBackend` for deterministic replay; transport proxy (`proxy.py`, `proxy_session.py`, `proxy_layers.py`, `proxy_log.py`, `normalize.py`; faults in `proxy_faults.py` and `perturb*.py`) for any runtime at the HTTP boundary
 - `runner/` — `Runner` ABC and `SubprocessRunner`
 - `exceptions.py` — `AgentAnvilError` hierarchy
 - `cli/main.py` — Typer CLI (`version`, `validate`, `proxy`; `run` is a placeholder)
