@@ -69,6 +69,18 @@
 - `DirectBackend` raises `BackendError` when a tool call's arguments are not a
   JSON object (or, from OpenAI, not valid JSON), in `complete` and `stream`,
   instead of a validation error or empty `arguments` (#33).
+- `DirectBackend` no longer fails a call to a self-hosted model. Each provider
+  priced the response with `cost_for`, which raises `KeyError` for a model
+  missing from `pricing.yaml`, after the call had succeeded, so every call to a
+  server behind a custom `base_url` (vLLM, SGLang, Ollama's OpenAI endpoint)
+  failed. Behind a custom `base_url`, a model without a price now costs 0 and
+  the response has `priced=False` (new field, `True` by default and left out of
+  dumps, so recordings of priced responses keep their shape); the last chunk of
+  a stream does the same. Against the vendor's API (its URL in any spelling) a
+  missing price still raises, and so does `cost_estimate`; a malformed entry
+  raises everywhere. `pricing.has_price(model)` tells whether a model has one. With an empty `api_key`, the OpenAI client sends
+  no `Authorization` header, for servers that take no key; it sent `Bearer `,
+  which httpx refuses as an illegal header value (#23).
 
 ## [0.1.1] - 2026-04-29
 

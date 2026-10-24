@@ -87,6 +87,8 @@ async def main() -> None:
 anyio.run(main)
 ```
 
+`cost_usd` comes from the pinned table in `backends/pricing/pricing.yaml`. A model missing from it raises `KeyError` against the vendor's API; behind a custom `base_url` (vLLM, SGLang, Ollama's OpenAI endpoint) it costs 0 and the reply has `priced=False`. `AGENTANVIL_PRICING_FILE` points to a table of your own. For a server that takes no key, pass `api_key=""`: the OpenAI client then sends no `Authorization` header.
+
 `agentanvil run` exists but is a placeholder until the evaluation pipeline lands in 0.2.0 ([#18](https://github.com/cchinchilla-dev/agentanvil/issues/18)).
 
 ## Record and replay at the HTTP boundary (unreleased)

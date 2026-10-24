@@ -9,7 +9,6 @@ import httpx
 
 from agentanvil.backends._providers._base import ProviderClientBase, tool_arguments
 from agentanvil.backends._providers.stream import google_stream
-from agentanvil.backends.pricing import cost_for
 from agentanvil.backends.types import LLMResponse, Message, ToolCall, ToolDef, Usage
 
 FinishReason = Literal["stop", "length", "tool_calls", "content_filter", "error"]
@@ -102,13 +101,7 @@ class GoogleClient(ProviderClientBase):
             reasoning_tokens=int(usage_meta.get("thoughtsTokenCount", 0)),
             cached_tokens=int(usage_meta.get("cachedContentTokenCount", 0)),
         )
-        cost = cost_for(
-            "google",
-            raw.get("model", ""),
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
-            reasoning_tokens=usage.reasoning_tokens,
-        )
+        cost, priced = self._cost(str(raw.get("model", "")), usage)
         return LLMResponse(
             content=text or None,
             tool_calls=tool_calls,
@@ -116,6 +109,7 @@ class GoogleClient(ProviderClientBase):
             finish_reason=_normalise_finish_reason(candidate.get("finishReason")),
             latency_ms=latency_ms,
             cost_usd=cost,
+            priced=priced,
             model=str(raw.get("model", "")),
             provider="google",
             raw=raw,

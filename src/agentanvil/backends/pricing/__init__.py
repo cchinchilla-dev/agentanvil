@@ -11,9 +11,14 @@ Override resolution order for `cost_for`:
 3. Bundled `pricing.yaml`.
 
 `cost_for` raises `KeyError` on unknown models. Callers can opt out by passing
-`default=Decimal(0)`. A trailing-prefix fallback is applied so a dated suffix
-(e.g. `gpt-4o-2024-11-20`) gracefully matches a base entry (e.g. `gpt-4o`)
-when the dated entry is absent.
+`default=Decimal(0)`. `DirectBackend` prices each response with it: behind a
+custom ``base_url`` (vLLM, SGLang, Ollama) an unknown model costs 0 and the
+response has ``priced=False``, since a self-hosted server has no list price;
+against the vendor's API it raises, and so does `cost_estimate`.
+`has_price` tells whether the table has an entry for a model. A
+trailing-prefix fallback is applied so a dated suffix (e.g.
+`gpt-4o-2024-11-20`) gracefully matches a base entry (e.g. `gpt-4o`) when the
+dated entry is absent.
 """
 
 from __future__ import annotations
@@ -59,6 +64,24 @@ def _is_model_entry(key: str, value: Any) -> bool:
     return not key.startswith("_") and isinstance(value, dict)
 
 
+def _find_entry(table: dict[str, Any], model: str) -> dict[str, Any] | None:
+    entry = table.get(model)
+    if entry is None or not isinstance(entry, dict):
+        # Prefix fallback: dated suffix matches its base entry.
+        for key, vals in table.items():
+            if not _is_model_entry(key, vals):
+                continue
+            if model.startswith(key):
+                entry = vals
+                break
+    return entry if isinstance(entry, dict) else None
+
+
+def has_price(model: str, *, pricing_table: dict[str, Any] | None = None) -> bool:
+    """Whether the table has an entry for ``model``, exact or by prefix."""
+    return _find_entry(pricing_table or _get_table(), model) is not None
+
+
 def cost_for(
     provider: str,
     model: str,
@@ -79,17 +102,8 @@ def cost_for(
     the YAML table is keyed by model id alone.
     """
     del provider  # accepted for compat; not used.
-    table = pricing_table or _get_table()
-    entry = table.get(model)
-    if entry is None or not isinstance(entry, dict):
-        # Prefix fallback: dated suffix matches its base entry.
-        for key, vals in table.items():
-            if not _is_model_entry(key, vals):
-                continue
-            if model.startswith(key):
-                entry = vals
-                break
-    if entry is None or not isinstance(entry, dict):
+    entry = _find_entry(pricing_table or _get_table(), model)
+    if entry is None:
         if default is not None:
             return default
         raise KeyError(f"No pricing for {model!r}; update agentanvil/backends/pricing/pricing.yaml")

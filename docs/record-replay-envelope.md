@@ -73,7 +73,7 @@ half-written state, even if the writer crashes.
 | `key` | string | yes | SHA-256 of the normalised request (see below). `"sha256:"` prefix + 64 hex chars. |
 | `step_id` | string \| null | yes | Caller-provided step identifier. Preferred lookup key on replay. |
 | `request` | object | yes | Normalised request. |
-| `response` | object | yes | Normalised `LLMResponse` model dump (`mode="json"`). For a streamed call, the whole answer: the joined text with the last chunk's tool calls, usage and finish reason. |
+| `response` | object | yes | Normalised `LLMResponse` model dump (`mode="json"`). For a streamed call, the whole answer: the joined text with the last chunk's tool calls, usage and finish reason. `priced: false` appears only on a response whose model has no price (cost 0); priced responses omit the field. |
 | `chunks` | array | no | Streamed calls only: every chunk, in order, as `LLMResponse` dumps. A stream abandoned before its end is not recorded; one stopped at its last chunk is, because the recorder hands over each chunk one chunk late. |
 
 ## Key derivation
