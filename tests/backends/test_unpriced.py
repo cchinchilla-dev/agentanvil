@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 import pytest
 
+from agentanvil.backends import pricing
 from agentanvil.backends.direct import DirectBackend
 from agentanvil.backends.types import LLMResponse, Message, Usage
 from agentanvil.record_replay.mock import MockBackend
@@ -75,10 +76,21 @@ async def test_unpriced_hosted_model_still_raises(provider: str) -> None:
         await _complete(provider, LOCAL, None).complete(HI, model=LOCAL)
 
 
-async def test_vendor_url_passed_explicitly_is_not_a_custom_server() -> None:
-    backend = _complete("openai", LOCAL, "https://api.openai.com/v1/")
+@pytest.mark.parametrize(
+    "url",
+    ["https://api.openai.com/v1/", "https://API.openai.com/v1", "https://api.openai.com:443/v1"],
+)
+async def test_vendor_url_passed_explicitly_is_not_a_custom_server(url: str) -> None:
     with pytest.raises(KeyError, match=LOCAL):
-        await backend.complete(HI, model=LOCAL)
+        await _complete("openai", LOCAL, url).complete(HI, model=LOCAL)
+
+
+async def test_malformed_price_behind_base_url_still_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pricing, "_TABLE", {LOCAL: {"output": 1}})  # an entry without `input`
+    with pytest.raises(KeyError, match="input"):
+        await _complete("openai", LOCAL, SERVER).complete(HI, model=LOCAL)
 
 
 async def test_priced_model_behind_base_url_keeps_its_cost() -> None:
@@ -156,3 +168,10 @@ async def test_unpriced_response_survives_record_and_replay(tmp_path: Path) -> N
     replayed = await MockBackend(out).complete(HI, model=LOCAL)
 
     assert (replayed.cost_usd, replayed.priced) == (Decimal(0), False)
+
+
+def test_has_price_matches_a_dated_suffix_by_prefix() -> None:
+    table = {"_meta": {"pricing_table_version": "x"}, "base-model": {"input": 1, "output": 1}}
+
+    assert pricing.has_price("base-model-2026-01-01", pricing_table=table)
+    assert not pricing.has_price(LOCAL, pricing_table=table)

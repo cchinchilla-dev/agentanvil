@@ -25,7 +25,7 @@ from typing import Any
 
 import httpx
 
-from agentanvil.backends.pricing import cost_for
+from agentanvil.backends.pricing import cost_for, has_price
 from agentanvil.backends.types import LLMResponse, Message, ToolDef, Usage
 from agentanvil.exceptions import BackendError
 
@@ -49,7 +49,8 @@ class ProviderClientBase(abc.ABC):
     ) -> None:
         self._api_key = api_key
         self._base_url = (base_url or default_base_url).rstrip("/")
-        self._custom_base_url = self._base_url != default_base_url.rstrip("/")
+        # httpx compares hosts without case and drops the scheme's default port.
+        self._custom_base_url = httpx.URL(self._base_url) != httpx.URL(default_base_url.rstrip("/"))
         headers: dict[str, str] = {}
         if auth_headers:
             headers.update(auth_headers)
@@ -85,20 +86,17 @@ class ProviderClientBase(abc.ABC):
         A model missing from the pricing table costs 0 behind a custom
         ``base_url``: a self-hosted server (vLLM, SGLang, Ollama) has no list
         price. Against the vendor's API it raises `KeyError`, since there the
-        gap is in ``pricing.yaml``.
+        gap is in ``pricing.yaml``. A malformed entry raises either way.
         """
-        try:
-            cost = cost_for(
-                self.provider,
-                model,
-                input_tokens=usage.input_tokens,
-                output_tokens=usage.output_tokens,
-                reasoning_tokens=usage.reasoning_tokens,
-            )
-        except KeyError:
-            if not self._custom_base_url:
-                raise
+        if self._custom_base_url and not has_price(model):
             return Decimal(0), False
+        cost = cost_for(
+            self.provider,
+            model,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            reasoning_tokens=usage.reasoning_tokens,
+        )
         return cost, True
 
     def _text_delta(
