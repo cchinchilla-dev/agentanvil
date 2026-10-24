@@ -10,7 +10,6 @@ import httpx
 
 from agentanvil.backends._providers._base import ProviderClientBase, tool_arguments
 from agentanvil.backends._providers.stream import openai_stream
-from agentanvil.backends.pricing import cost_for
 from agentanvil.backends.types import LLMResponse, Message, ToolCall, ToolDef, Usage
 
 FinishReason = Literal["stop", "length", "tool_calls", "content_filter", "error"]
@@ -28,7 +27,8 @@ class OpenAIClient(ProviderClientBase):
             api_key=api_key,
             base_url=base_url or _DEFAULT_BASE_URL,
             default_base_url=_DEFAULT_BASE_URL,
-            auth_headers={"Authorization": f"Bearer {api_key}"},
+            # A self-hosted server may take no key; an empty `Bearer ` is an illegal header value.
+            auth_headers={"Authorization": f"Bearer {api_key}"} if api_key else None,
         )
 
     async def complete(
@@ -104,13 +104,7 @@ class OpenAIClient(ProviderClientBase):
             )
             for call in message.get("tool_calls", []) or []
         ]
-        cost = cost_for(
-            "openai",
-            raw.get("model", ""),
-            input_tokens=usage_obj.input_tokens,
-            output_tokens=usage_obj.output_tokens,
-            reasoning_tokens=usage_obj.reasoning_tokens,
-        )
+        cost, priced = self._cost(str(raw.get("model", "")), usage_obj)
         return LLMResponse(
             content=message.get("content"),
             tool_calls=tool_calls,
@@ -118,6 +112,7 @@ class OpenAIClient(ProviderClientBase):
             finish_reason=_normalise_finish_reason(choice.get("finish_reason")),
             latency_ms=latency_ms,
             cost_usd=cost,
+            priced=priced,
             model=str(raw.get("model", "")),
             provider="openai",
             raw=raw,

@@ -9,7 +9,6 @@ import httpx
 
 from agentanvil.backends._providers._base import ProviderClientBase, tool_arguments
 from agentanvil.backends._providers.stream import anthropic_stream
-from agentanvil.backends.pricing import cost_for
 from agentanvil.backends.types import LLMResponse, Message, ToolCall, ToolDef, Usage
 
 FinishReason = Literal["stop", "length", "tool_calls", "content_filter", "error"]
@@ -114,13 +113,7 @@ class AnthropicClient(ProviderClientBase):
                     )
                 )
 
-        cost = cost_for(
-            "anthropic",
-            raw.get("model", ""),
-            input_tokens=usage_obj.input_tokens,
-            output_tokens=usage_obj.output_tokens,
-            reasoning_tokens=usage_obj.reasoning_tokens,
-        )
+        cost, priced = self._cost(str(raw.get("model", "")), usage_obj)
         return LLMResponse(
             content="".join(text_parts) or None,
             tool_calls=tool_calls,
@@ -128,6 +121,7 @@ class AnthropicClient(ProviderClientBase):
             finish_reason=_normalise_stop_reason(raw.get("stop_reason")),
             latency_ms=latency_ms,
             cost_usd=cost,
+            priced=priced,
             model=str(raw.get("model", "")),
             provider="anthropic",
             raw=raw,

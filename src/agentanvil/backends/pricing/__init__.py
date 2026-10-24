@@ -11,9 +11,13 @@ Override resolution order for `cost_for`:
 3. Bundled `pricing.yaml`.
 
 `cost_for` raises `KeyError` on unknown models. Callers can opt out by passing
-`default=Decimal(0)`. A trailing-prefix fallback is applied so a dated suffix
-(e.g. `gpt-4o-2024-11-20`) gracefully matches a base entry (e.g. `gpt-4o`)
-when the dated entry is absent.
+`default=Decimal(0)`. `DirectBackend` prices each response with it: behind a
+custom ``base_url`` (vLLM, SGLang, Ollama) an unknown model costs 0 and the
+response has ``priced=False``, since a self-hosted server has no list price;
+against the vendor's API it raises, and so does `cost_estimate`. A
+trailing-prefix fallback is applied so a dated suffix (e.g.
+`gpt-4o-2024-11-20`) gracefully matches a base entry (e.g. `gpt-4o`) when the
+dated entry is absent.
 """
 
 from __future__ import annotations

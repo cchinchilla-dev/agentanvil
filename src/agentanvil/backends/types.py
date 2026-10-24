@@ -10,7 +10,13 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+    model_validator,
+)
 
 
 class ContentBlock(BaseModel):
@@ -77,6 +83,15 @@ class LLMResponse(BaseModel):
     finish_reason: Literal["stop", "length", "tool_calls", "content_filter", "error"]
     latency_ms: int
     cost_usd: Decimal
+    priced: bool = True  # False: the model has no price, so `cost_usd` is 0 rather than its cost
     model: str
     provider: str
     raw: dict[str, Any] = Field(default_factory=dict)  # opaque provider payload for debugging
+
+    @model_serializer(mode="wrap")
+    def _without_default_priced(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # Priced responses dump as before, so recordings only change for unpriced ones.
+        data: dict[str, Any] = handler(self)
+        if self.priced:
+            data.pop("priced", None)
+        return data

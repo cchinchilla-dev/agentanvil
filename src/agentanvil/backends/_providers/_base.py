@@ -7,6 +7,7 @@ inherits from `ProviderClientBase` to share:
 - Server-Sent-Events (SSE) line iteration helper.
 - The text-delta chunk every streaming normaliser yields.
 - The check that a tool call's arguments are a JSON object.
+- The cost of a call, zero for an unpriced model behind a custom `base_url`.
 - Provider name field used by `DirectBackend`.
 
 Vendor-specific concerns (auth header shape, payload encoding, response
@@ -24,6 +25,7 @@ from typing import Any
 
 import httpx
 
+from agentanvil.backends.pricing import cost_for
 from agentanvil.backends.types import LLMResponse, Message, ToolDef, Usage
 from agentanvil.exceptions import BackendError
 
@@ -47,6 +49,7 @@ class ProviderClientBase(abc.ABC):
     ) -> None:
         self._api_key = api_key
         self._base_url = (base_url or default_base_url).rstrip("/")
+        self._custom_base_url = self._base_url != default_base_url.rstrip("/")
         headers: dict[str, str] = {}
         if auth_headers:
             headers.update(auth_headers)
@@ -75,6 +78,28 @@ class ProviderClientBase(abc.ABC):
             if payload == "[DONE]":
                 return
             yield json.loads(payload)
+
+    def _cost(self, model: str, usage: Usage) -> tuple[Decimal, bool]:
+        """The call's cost and whether its model has a price.
+
+        A model missing from the pricing table costs 0 behind a custom
+        ``base_url``: a self-hosted server (vLLM, SGLang, Ollama) has no list
+        price. Against the vendor's API it raises `KeyError`, since there the
+        gap is in ``pricing.yaml``.
+        """
+        try:
+            cost = cost_for(
+                self.provider,
+                model,
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+                reasoning_tokens=usage.reasoning_tokens,
+            )
+        except KeyError:
+            if not self._custom_base_url:
+                raise
+            return Decimal(0), False
+        return cost, True
 
     def _text_delta(
         self, text: str, *, model: str, raw: dict[str, Any], start_ns: int
