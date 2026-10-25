@@ -2,8 +2,9 @@
 
 Zero vendor SDKs, zero AgentLoom dependency. The portability target.
 
-Hardening (rate limits, retries, reconnect, multi-modal routing, full streaming
-robustness) lands in 0.2.0 #015. This is the skeleton.
+Network errors and transient statuses are retried as its `RetryPolicy` says;
+a failure that stays raises `BackendError`. No circuit breaker or shared rate
+limiter: `AgentLoomBackend` (#9) brings those.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from agentanvil.backends._providers import anthropic, google, openai
 from agentanvil.backends._providers._base import ProviderClientBase
 from agentanvil.backends.base import LLMBackend
 from agentanvil.backends.pricing import cost_for
+from agentanvil.backends.retry import RetryPolicy, open_stream, with_retry
 from agentanvil.backends.types import LLMResponse, Message, ToolDef
 from agentanvil.exceptions import BackendError
 
@@ -34,8 +36,10 @@ class DirectBackend(LLMBackend):
         api_key: str,
         *,
         base_url: str | None = None,
+        retry: RetryPolicy | None = None,
     ) -> None:
         self.provider = provider
+        self._retry = retry or RetryPolicy()
         self._client: ProviderClientBase
         if provider == "openai":
             self._client = openai.OpenAIClient(api_key=api_key, base_url=base_url)
@@ -60,15 +64,19 @@ class DirectBackend(LLMBackend):
         timeout_s: float | None = None,
         step_id: str | None = None,  # noqa: ARG002 — ABC contract; not used by network backends
     ) -> LLMResponse:
-        start = time.monotonic_ns()
-        raw = await self._client.complete(
-            messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            tools=tools,
-            seed=seed,
-            timeout_s=timeout_s,
+        start = time.monotonic_ns()  # the latency includes any retries: the caller waited for them
+        raw = await with_retry(
+            self.provider,
+            lambda: self._client.complete(
+                messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=tools,
+                seed=seed,
+                timeout_s=timeout_s,
+            ),
+            self._retry,
         )
         latency_ms = (time.monotonic_ns() - start) // 1_000_000
         return self._client.normalise(raw, latency_ms=latency_ms)
@@ -84,13 +92,17 @@ class DirectBackend(LLMBackend):
         seed: int | None = None,
     ) -> AsyncIterator[LLMResponse]:
         start = time.monotonic_ns()
-        chunks = self._client.stream(
-            messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            tools=tools,
-            seed=seed,
+        chunks = open_stream(
+            self.provider,
+            lambda: self._client.stream(
+                messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=tools,
+                seed=seed,
+            ),
+            self._retry,
         )
         async for response in self._client.normalise_stream(chunks, model=model, start_ns=start):
             yield response

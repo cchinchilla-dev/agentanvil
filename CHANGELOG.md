@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Added
+- `DirectBackend` retries network errors and the statuses 408, 429, 500, 502,
+  503, 504 and 529 (#8): it waits as long as the server asks (`retry-after-ms`,
+  `Retry-After` in seconds or as a date, Google's `retryDelay`), or else with
+  exponential backoff and full jitter. `DirectBackend(..., retry=RetryPolicy(...))`
+  sets the attempts (3), the base delay (1 s) and the longest wait (30 s); a
+  server asking for longer fails at once, and `max_attempts=1` turns retries
+  off. A stream is retried only until its first chunk arrives.
 - Fault injection in the transport proxy (#36): a session's `perturb` list
   applies one operator to one crossing of a role, on live crossings only, so
   `replay_until` doubles as the injection point. On the request: `tool_result`,
@@ -40,6 +47,10 @@
   recorded entries for a call run out, instead of serving the last one again (#22).
 
 ### Changed
+- `DirectBackend` raises `BackendError`, chained from the httpx error, when a
+  call fails for good (a status it does not retry, its last attempt, a stream
+  that breaks after its first chunk), instead of letting `httpx` errors through
+  (#8).
 - Replay misses raise `ReplayMissError`, a `RecordingError` that is still a
   `KeyError`, so existing `except KeyError` handlers keep working (#22).
 - Re-recording into an existing file replaces what earlier runs left for each
