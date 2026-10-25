@@ -74,6 +74,8 @@ class GoogleClient(ProviderClientBase):
             params={"key": self._api_key, "alt": "sse"},
             json=payload,
         ) as response:
+            if response.is_error:
+                await response.aread()  # the retry reads Google's `retryDelay` from the body
             response.raise_for_status()
             async for chunk in self._iter_sse(response):
                 chunk.setdefault("model", model)
